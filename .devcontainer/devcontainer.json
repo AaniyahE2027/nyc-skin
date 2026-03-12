@@ -1,0 +1,9 @@
+{
+	"extensions": [
+		"dbaeumer.vscode-eslint",
+		"esbenp.prettier-vscode",
+		"codespaces-contrib.codeswing",
+		"fabiospampinato.vscode-monokai-night"
+	]
+
+}
