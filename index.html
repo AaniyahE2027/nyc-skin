@@ -40,6 +40,16 @@
     <section class="panel" aria-labelledby="recommend-title">
       <div class="panel-head">
         <h2 id="recommend-title">Skincare Product Recommendations</h2>
+        <div class="filter-wrap">
+          <label for="skin-type-filter">Skin Type</label>
+          <select id="skin-type-filter" name="skin-type-filter">
+            <option value="all">All Skin Types</option>
+            <option value="oily">Oily</option>
+            <option value="dry">Dry</option>
+            <option value="sensitive">Sensitive</option>
+            <option value="acne-prone">Acne-Prone</option>
+          </select>
+        </div>
       </div>
       <div id="summary-banner" class="summary-banner" aria-live="polite"></div>
       <div id="recommendations" class="recommendations" aria-live="polite"></div>

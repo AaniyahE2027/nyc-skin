@@ -8,10 +8,13 @@ const elements = {
 	status: document.getElementById("status"),
 	updated: document.getElementById("last-updated"),
 	refreshBtn: document.getElementById("refresh-btn"),
+	skinTypeFilter: document.getElementById("skin-type-filter"),
 	metricsGrid: document.getElementById("metrics-grid"),
 	summaryBanner: document.getElementById("summary-banner"),
 	recommendations: document.getElementById("recommendations"),
 };
+
+let latestData = null;
 
 const weatherCodeMap = {
 	0: "Clear sky",
@@ -129,7 +132,17 @@ function round(value) {
 	return Math.round(value);
 }
 
-function buildRecommendations(data) {
+function formatSkinTypeLabel(skinType) {
+	if (skinType === "all") {
+		return "all skin types";
+	}
+	if (skinType === "acne-prone") {
+		return "acne-prone skin";
+	}
+	return `${skinType} skin`;
+}
+
+function buildRecommendations(data, skinType = "all") {
 	const humidity = data.weather.relative_humidity_2m;
 	const aqi = data.air.us_aqi;
 	const pm25 = data.air.pm2_5;
@@ -138,106 +151,191 @@ function buildRecommendations(data) {
 
 	const items = new Map();
 	const reasons = [];
+	const profileReasons = [];
+
+	function addItem(key, product) {
+		items.set(key, {
+			...product,
+			skinTypes: product.skinTypes || ["all"],
+		});
+	}
 
 	if (humidity < 35) {
 		reasons.push("Low humidity can pull water from your skin barrier.");
-		items.set("hydrating-cleanser", {
+		addItem("hydrating-cleanser", {
 			title: "Hydrating Cleanser",
 			tag: "Dry-Air Essential",
 			levelClass: "warn",
 			note: "Use a non-foaming cleanser with glycerin to avoid tightness after washing.",
+			skinTypes: ["all"],
 		});
-		items.set("ceramide-cream", {
+		addItem("ceramide-cream", {
 			title: "Ceramide Moisturizer",
 			tag: "Barrier Repair",
 			levelClass: "good",
 			note: "Lock in moisture with a ceramide-rich cream morning and night.",
+			skinTypes: ["all"],
 		});
 	}
 
 	if (humidity > 70) {
 		reasons.push("High humidity can increase sweat and clog-prone shine.");
-		items.set("gel-moisturizer", {
+		addItem("gel-moisturizer", {
 			title: "Gel Moisturizer",
 			tag: "Humidity Friendly",
 			levelClass: "good",
 			note: "Choose a lightweight, non-comedogenic gel so skin stays balanced.",
+			skinTypes: ["all"],
 		});
-		items.set("niacinamide", {
+		addItem("niacinamide", {
 			title: "Niacinamide Serum (4-10%)",
 			tag: "Oil Balance",
 			levelClass: "good",
 			note: "Apply once daily to reduce excess oil and visible pores.",
+			skinTypes: ["oily", "acne-prone"],
 		});
 	}
 
 	if (aqi > 100 || pm25 > 35) {
 		reasons.push("Elevated pollution can increase oxidative stress on skin.");
-		items.set("antioxidant", {
+		addItem("antioxidant", {
 			title: "Antioxidant Serum",
 			tag: "Pollution Shield",
 			levelClass: "bad",
 			note: "Use vitamin C or green tea antioxidants in the morning before sunscreen.",
+			skinTypes: ["all"],
 		});
-		items.set("double-cleanse", {
+		addItem("double-cleanse", {
 			title: "Evening Double Cleanse",
 			tag: "Air Quality Support",
 			levelClass: "warn",
 			note: "Break down sunscreen and particulate buildup with an oil cleanse first.",
+			skinTypes: ["all"],
 		});
 	}
 
 	if (uv >= 6) {
 		reasons.push("UV is high, so stronger daily sun protection is needed.");
-		items.set("spf50", {
+		addItem("spf50", {
 			title: "Broad-Spectrum SPF 50",
 			tag: "High UV",
 			levelClass: "bad",
 			note: "Use two finger-lengths for face and neck, then reapply every 2 hours outdoors.",
+			skinTypes: ["all"],
 		});
 	} else if (uv >= 3) {
 		reasons.push("Moderate UV still requires daily sunscreen.");
-		items.set("spf30", {
+		addItem("spf30", {
 			title: "Broad-Spectrum SPF 30+",
 			tag: "Daily Defense",
 			levelClass: "warn",
 			note: "Apply every morning as your last skincare step.",
+			skinTypes: ["all"],
 		});
 	}
 
 	if (temp <= 5) {
 		reasons.push("Cold air can increase transepidermal water loss.");
-		items.set("occlusive", {
+		addItem("occlusive", {
 			title: "Occlusive Night Balm",
 			tag: "Cold Weather",
 			levelClass: "warn",
 			note: "Seal in hydration at night with petrolatum or squalane.",
+			skinTypes: ["dry", "sensitive"],
 		});
 	}
 
 	if (temp >= 28) {
 		reasons.push("Hot weather favors sweat-resistant, lightweight formulas.");
-		items.set("light-lotion", {
+		addItem("light-lotion", {
 			title: "Lightweight Lotion",
 			tag: "Heat Friendly",
 			levelClass: "good",
 			note: "Swap heavy creams for water-based hydration in daytime.",
+			skinTypes: ["oily", "acne-prone"],
+		});
+	}
+
+	if (skinType === "oily") {
+		profileReasons.push("Oily skin benefits from lightweight, sebum-balancing textures.");
+		addItem("oily-bha", {
+			title: "BHA Leave-On Exfoliant (0.5-2%)",
+			tag: "Oily Skin Focus",
+			levelClass: "good",
+			note: "Use 2-4 nights weekly to keep pores clear and control shine.",
+			skinTypes: ["oily", "acne-prone"],
+		});
+	}
+
+	if (skinType === "dry") {
+		profileReasons.push("Dry skin needs humectants and stronger barrier support.");
+		addItem("dry-hyaluronic", {
+			title: "Hyaluronic + Panthenol Serum",
+			tag: "Dry Skin Focus",
+			levelClass: "good",
+			note: "Apply to damp skin, then seal with cream to reduce dehydration.",
+			skinTypes: ["dry"],
+		});
+	}
+
+	if (skinType === "sensitive") {
+		profileReasons.push("Sensitive skin does best with calming, fragrance-free formulas.");
+		addItem("sensitive-cica", {
+			title: "Cica or Oat Barrier Cream",
+			tag: "Sensitive Skin Focus",
+			levelClass: "good",
+			note: "Choose fragrance-free creams with centella, oat, or allantoin.",
+			skinTypes: ["sensitive"],
+		});
+	}
+
+	if (skinType === "acne-prone") {
+		profileReasons.push("Acne-prone skin needs clear-pore support with non-comedogenic hydration.");
+		addItem("acne-azelaic", {
+			title: "Azelaic Acid (10-15%)",
+			tag: "Acne-Prone Focus",
+			levelClass: "warn",
+			note: "Use once daily to support clearer skin and calmer post-blemish marks.",
+			skinTypes: ["acne-prone"],
 		});
 	}
 
 	if (items.size === 0) {
 		reasons.push("Current conditions are fairly balanced.");
-		items.set("maintenance", {
+		addItem("maintenance", {
 			title: "Simple Maintenance Routine",
 			tag: "Steady Conditions",
 			levelClass: "good",
 			note: "Keep a gentle cleanser, daily moisturizer, and SPF 30+ routine.",
+			skinTypes: ["all"],
 		});
 	}
 
+	const filteredProducts = Array.from(items.values()).filter((product) => {
+		if (skinType === "all") {
+			return true;
+		}
+		return product.skinTypes.includes("all") || product.skinTypes.includes(skinType);
+	});
+
+	if (filteredProducts.length === 0) {
+		filteredProducts.push({
+			title: "Basic Gentle Routine",
+			tag: "Fallback",
+			levelClass: "good",
+			note: "Use a gentle cleanser, lightweight moisturizer, and broad-spectrum SPF.",
+		});
+	}
+
+	const summaryBase = reasons[0] || "Conditions are fairly balanced.";
+	const profileSummary =
+		skinType === "all"
+			? "Showing recommendations for all skin types."
+			: profileReasons[0] || `Filtered for ${formatSkinTypeLabel(skinType)}.`;
+
 	return {
-		summary: reasons[0],
-		products: Array.from(items.values()),
+		summary: `${summaryBase} ${profileSummary}`,
+		products: filteredProducts,
 	};
 }
 
@@ -291,7 +389,8 @@ function renderMetrics(data) {
 }
 
 function renderRecommendations(data) {
-	const rec = buildRecommendations(data);
+	const selectedSkinType = elements.skinTypeFilter.value;
+	const rec = buildRecommendations(data, selectedSkinType);
 
 	elements.summaryBanner.textContent = rec.summary;
 
@@ -330,6 +429,7 @@ async function loadWeatherAndAdvice() {
 
 	try {
 		const data = await fetchNYCData();
+		latestData = data;
 		renderMetrics(data);
 		renderRecommendations(data);
 		updateTimestamp(data.currentTime);
@@ -344,5 +444,12 @@ async function loadWeatherAndAdvice() {
 }
 
 elements.refreshBtn.addEventListener("click", loadWeatherAndAdvice);
+elements.skinTypeFilter.addEventListener("change", () => {
+	if (!latestData) {
+		return;
+	}
+	renderRecommendations(latestData);
+	setStatus(`Filter applied: ${formatSkinTypeLabel(elements.skinTypeFilter.value)}.`);
+});
 
 loadWeatherAndAdvice();

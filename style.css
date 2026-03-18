@@ -151,6 +151,36 @@ h2 {
 	margin-bottom: 1rem;
 }
 
+.filter-wrap {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.filter-wrap label {
+	font-size: 0.86rem;
+	font-weight: 700;
+	color: var(--muted);
+}
+
+#skin-type-filter {
+	border: 1px solid var(--line);
+	background: #fff;
+	border-radius: 999px;
+	padding: 0.4rem 0.75rem;
+	font: inherit;
+	font-size: 0.9rem;
+	color: var(--ink);
+	outline: none;
+	transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+
+#skin-type-filter:focus {
+	border-color: var(--primary);
+	box-shadow: 0 0 0 3px rgba(0, 122, 120, 0.2);
+}
+
 .city-pill {
 	border-radius: 999px;
 	padding: 0.35rem 0.7rem;
