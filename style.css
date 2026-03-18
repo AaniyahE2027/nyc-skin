@@ -1,1 +1,283 @@
+:root {
+	--bg: #fff7ee;
+	--ink: #132432;
+	--muted: #4e5e6b;
+	--primary: #007a78;
+	--accent: #ff7a59;
+	--card: rgba(255, 255, 255, 0.84);
+	--line: rgba(15, 40, 62, 0.15);
+	--good: #0f9960;
+	--warn: #cc8a00;
+	--bad: #c7423a;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	min-height: 100vh;
+	font-family: "Space Grotesk", sans-serif;
+	background:
+		radial-gradient(circle at 10% 15%, #ffd8c7 0 20%, transparent 45%),
+		radial-gradient(circle at 85% 0%, #b6ece8 0 18%, transparent 40%),
+		linear-gradient(160deg, #fff7ee 0%, #ecf8ff 45%, #fffef4 100%);
+	color: var(--ink);
+	overflow-x: hidden;
+}
+
+.bg-shape {
+	position: fixed;
+	border-radius: 999px;
+	filter: blur(1px);
+	z-index: 0;
+	pointer-events: none;
+}
+
+.shape-1 {
+	width: 320px;
+	height: 320px;
+	top: -80px;
+	left: -40px;
+	background: linear-gradient(120deg, #ff9a76, #ffcb7d);
+	opacity: 0.2;
+}
+
+.shape-2 {
+	width: 300px;
+	height: 300px;
+	right: -110px;
+	bottom: 10%;
+	background: linear-gradient(120deg, #5bddd2, #96d8ff);
+	opacity: 0.22;
+}
+
+.app-shell {
+	position: relative;
+	z-index: 1;
+	width: min(1080px, 92vw);
+	margin: 3rem auto;
+	display: grid;
+	gap: 1.25rem;
+}
+
+.hero,
+.panel {
+	border: 1px solid var(--line);
+	background: var(--card);
+	border-radius: 24px;
+	padding: 1.5rem;
+	backdrop-filter: blur(8px);
+	animation: rise-in 550ms ease both;
+}
+
+.hero {
+	animation-delay: 50ms;
+}
+
+.panel:nth-of-type(2) {
+	animation-delay: 180ms;
+}
+
+.panel:nth-of-type(3) {
+	animation-delay: 300ms;
+}
+
+.eyebrow {
+	margin: 0 0 0.4rem;
+	font-size: 0.8rem;
+	font-weight: 700;
+	letter-spacing: 0.12em;
+	color: var(--primary);
+}
+
+h1,
+h2 {
+	margin: 0;
+	font-family: "Fraunces", serif;
+}
+
+h1 {
+	font-size: clamp(2rem, 4vw, 3.4rem);
+	line-height: 1.08;
+}
+
+h2 {
+	font-size: clamp(1.35rem, 2vw, 1.8rem);
+}
+
+.subtitle {
+	margin: 0.8rem 0 1.2rem;
+	max-width: 70ch;
+	color: var(--muted);
+}
+
+.hero-meta {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.8rem;
+	justify-content: space-between;
+}
+
+#refresh-btn {
+	border: 0;
+	border-radius: 999px;
+	background: linear-gradient(120deg, var(--primary), #0d9794);
+	color: #fff;
+	font-weight: 700;
+	letter-spacing: 0.01em;
+	padding: 0.65rem 1rem;
+	cursor: pointer;
+	transition: transform 180ms ease, box-shadow 180ms ease;
+}
+
+#refresh-btn:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 6px 18px rgba(0, 122, 120, 0.28);
+}
+
+#refresh-btn:active {
+	transform: translateY(0);
+}
+
+.panel-head {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: center;
+	gap: 0.7rem;
+	margin-bottom: 1rem;
+}
+
+.city-pill {
+	border-radius: 999px;
+	padding: 0.35rem 0.7rem;
+	font-size: 0.82rem;
+	font-weight: 700;
+	background: rgba(0, 122, 120, 0.12);
+	color: var(--primary);
+}
+
+.metrics-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+	gap: 0.8rem;
+}
+
+.metric-card,
+.rec-card {
+	border: 1px solid var(--line);
+	border-radius: 16px;
+	background: #fff;
+	padding: 0.95rem;
+	animation: rise-in 450ms ease both;
+}
+
+.metric-label {
+	color: var(--muted);
+	font-size: 0.88rem;
+	margin: 0;
+}
+
+.metric-value {
+	margin: 0.25rem 0 0;
+	font-size: 1.45rem;
+	font-weight: 700;
+}
+
+.metric-note {
+	margin: 0.35rem 0 0;
+	font-size: 0.85rem;
+	color: var(--muted);
+}
+
+.summary-banner {
+	border: 1px dashed var(--line);
+	border-radius: 14px;
+	background: linear-gradient(120deg, #fff7f2, #f4fbff);
+	padding: 0.8rem 0.95rem;
+	margin-bottom: 0.9rem;
+	color: var(--ink);
+}
+
+.recommendations {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: 0.8rem;
+}
+
+.rec-card h3 {
+	margin: 0;
+	font-size: 1.08rem;
+}
+
+.tag {
+	display: inline-block;
+	margin-top: 0.35rem;
+	padding: 0.2rem 0.5rem;
+	border-radius: 999px;
+	font-size: 0.74rem;
+	font-weight: 700;
+	color: #fff;
+}
+
+.tag.good {
+	background: var(--good);
+}
+
+.tag.warn {
+	background: var(--warn);
+}
+
+.tag.bad {
+	background: var(--bad);
+}
+
+.rec-card p {
+	margin: 0.55rem 0 0;
+	color: var(--muted);
+	font-size: 0.92rem;
+}
+
+.status {
+	margin: 0;
+	font-size: 0.9rem;
+	color: var(--muted);
+}
+
+.status.error {
+	color: var(--bad);
+	font-weight: 700;
+}
+
+@keyframes rise-in {
+	from {
+		opacity: 0;
+		transform: translateY(16px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@media (max-width: 620px) {
+	.app-shell {
+		width: min(96vw, 1080px);
+		margin: 1.1rem auto 1.8rem;
+	}
+
+	.hero,
+	.panel {
+		padding: 1.05rem;
+		border-radius: 18px;
+	}
+
+	.subtitle {
+		margin-bottom: 1rem;
+	}
+}
 
