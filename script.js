@@ -142,6 +142,24 @@ function formatSkinTypeLabel(skinType) {
 	return `${skinType} skin`;
 }
 
+const CSV_FALLBACK_DATA = `Brand,Product,Type,Price,Dry,Oily,Combination,Acne-prone,Sensitive
+Tatcha,Dewy Skin Cream,Cream,$$$,TRUE,FALSE,FALSE,FALSE,TRUE
+La Roche-Posay,Hydrating Gentle Cleanser,Cleanser,$,TRUE,FALSE,FALSE,TRUE,TRUE
+Cerva,Hydrating Facial Cleanser,Cleanser,$,FALSE,FALSE,FALSE,FALSE,FALSE
+Cerva,Daily Face Wash,Cleanser,$,FALSE,TRUE,TRUE,FALSE,FALSE
+Ordinary,Makeup Removal,Cleanser,$,TRUE,FALSE,FALSE,FALSE,TRUE
+Mixsoon,Cleansing Foam ,Cleanser,$,TRUE,TRUE,TRUE,TRUE,TRUE
+Bioderma ,Sensitive cleanser ,Cleanser,$$,TRUE,TRUE,TRUE,TRUE,TRUE
+Anua ,Pore Deep Cleasning Foam,Cleanser,$,FALSE,TRUE,FALSE,TRUE,TRUE
+Medicube,Collegen Night Mask,Treatment,$$,FALSE,TRUE,TRUE,TRUE,TRUE
+Dr. Jart+,Moisturizing Face Mask,Treatment,$,TRUE,FALSE,FALSE,FALSE,TRUE
+Ordinary,Niacinamide 10% + Zinc 1%  Serum,Serum,$,FALSE,TRUE,FALSE,TRUE,FALSE
+Kiehl's,Hydrating & Soothing Face Mask,Treatment,$$,TRUE,FALSE,FALSE,FALSE,FALSE
+Anua,Azelaic Acid 10 Hyaluron Redness Soothing Serum,Serum,$,FALSE,FALSE,FALSE,TRUE,TRUE
+Dr. Althea 345 Relief Cream,Relief Cream ,Cream,$,FALSE,TRUE,TRUE,TRUE,TRUE
+Kiehl's,Alcohol-Free Toner,Toner,$$$,FALSE,TRUE,FALSE,TRUE,FALSE
+Purito,Eye Cream For Brightening,Cream,$$,TRUE,FALSE,FALSE,FALSE,TRUE`;
+
 let productCatalog = [];
 
 async function loadProductCatalog() {
@@ -155,7 +173,8 @@ async function loadProductCatalog() {
 		productCatalog = parseCsvCatalog(csvText);
 	} catch (error) {
 		console.warn("Product catalog unavailable:", error);
-		productCatalog = [];
+		productCatalog = parseCsvCatalog(CSV_FALLBACK_DATA);
+		console.info("Loaded product catalog from built-in fallback data.");
 	}
 }
 
@@ -676,8 +695,14 @@ async function loadWeatherAndAdvice() {
 	elements.refreshBtn.disabled = true;
 
 	try {
-		await loadProductCatalog();
-		const data = await fetchNYCData();
+		// Load weather data and product catalog in parallel
+		const [data] = await Promise.all([
+			fetchNYCData(),
+			loadProductCatalog().catch((error) => {
+				console.warn("Product catalog unavailable:", error);
+			}),
+		]);
+		
 		latestData = data;
 		renderMetrics(data);
 		renderRecommendations(data);
@@ -701,4 +726,6 @@ elements.skinTypeFilter.addEventListener("change", () => {
 	setStatus(`Filter applied: ${formatSkinTypeLabel(elements.skinTypeFilter.value)}.`);
 });
 
-loadWeatherAndAdvice();
+document.addEventListener("DOMContentLoaded", () => {
+	loadWeatherAndAdvice();
+});
