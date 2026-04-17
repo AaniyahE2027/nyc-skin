@@ -142,6 +142,95 @@ function formatSkinTypeLabel(skinType) {
 	return `${skinType} skin`;
 }
 
+let productCatalog = [];
+
+async function loadProductCatalog() {
+	const csvUrl = encodeURI("Skincare Spreadsheet - ORGANIZED.csv");
+	try {
+		const response = await fetch(csvUrl);
+		if (!response.ok) {
+			throw new Error(`Failed to fetch product catalog: ${response.status}`);
+		}
+		const csvText = await response.text();
+		productCatalog = parseCsvCatalog(csvText);
+	} catch (error) {
+		console.warn("Product catalog unavailable:", error);
+		productCatalog = [];
+	}
+}
+
+function parseCsvCatalog(csvText) {
+	const rows = csvText
+		.split(/\r?\n/)
+		.map((line) => line.trim())
+		.filter((line) => line.length > 0);
+
+	if (rows.length < 2) {
+		return [];
+	}
+
+	const headers = rows[0].split(",").map((header) => header.trim());
+
+	return rows.slice(1).map((line) => {
+		const values = line.split(",").map((value) => value.trim());
+		const record = headers.reduce((acc, header, index) => {
+			acc[header] = values[index] ?? "";
+			return acc;
+		}, {});
+
+		return {
+			brand: record.Brand,
+			product: record.Product,
+			type: record.Type,
+			price: record.Price,
+			dry: toBoolean(record.Dry),
+			oily: toBoolean(record.Oily),
+			combination: toBoolean(record.Combination),
+			acneProne: toBoolean(record["Acne-prone"]),
+			sensitive: toBoolean(record.Sensitive),
+		};
+	}).filter((item) => item.brand && item.product);
+}
+
+function toBoolean(value) {
+	return String(value).trim().toUpperCase() === "TRUE";
+}
+
+function computeProductScore(product, criteria) {
+	let score = 0;
+
+	if (criteria.types && criteria.types.length) {
+		const typeMatch = criteria.types.some(
+			(type) => product.type?.toLowerCase() === type.toLowerCase()
+		);
+		score += typeMatch ? 2 : 0;
+	}
+
+	(criteria.skinTags || []).forEach((tag) => {
+		if (product[tag]) {
+			score += 1;
+		}
+	});
+
+	return score;
+}
+
+function findProducts(criteria = {}, limit = 3) {
+	if (!productCatalog.length) {
+		return [];
+	}
+
+	const matches = productCatalog
+		.map((product) => ({
+			product,
+			score: computeProductScore(product, criteria),
+		}))
+		.filter((entry) => entry.score > 0)
+		.sort((a, b) => b.score - a.score);
+
+	return matches.slice(0, limit).map((entry) => entry.product);
+}
+
 function buildRecommendations(data, skinType = "all") {
 	const humidity = data.weather.relative_humidity_2m;
 	const aqi = data.air.us_aqi;
@@ -160,58 +249,126 @@ function buildRecommendations(data, skinType = "all") {
 		});
 	}
 
+	function addProductMatches(keyBase, matches, attrs, fallbackItems = []) {
+		if (matches.length) {
+			matches.forEach((product) => {
+				const id = `${keyBase}-${product.brand}-${product.product}`
+					.replace(/\s+/g, "-")
+					.toLowerCase();
+				addItem(id, {
+					title: `${product.brand} ${product.product}`,
+					tag: attrs.tag,
+					levelClass: attrs.levelClass,
+					note: attrs.note,
+					meta: [product.type, product.price].filter(Boolean).join(" · "),
+					skinTypes: attrs.skinTypes || ["all"],
+				});
+			});
+			return;
+		}
+
+		fallbackItems.forEach((fallback, index) => {
+			addItem(`${keyBase}-fallback-${index}`, fallback);
+		});
+	}
+
 	if (humidity < 35) {
 		reasons.push("Low humidity can pull water from your skin barrier.");
-		addItem("hydrating-cleanser", {
-			title: "Hydrating Cleanser",
-			tag: "Dry-Air Essential",
-			levelClass: "warn",
-			note: "Use a non-foaming cleanser with glycerin to avoid tightness after washing.",
-			skinTypes: ["all"],
-		});
-		addItem("ceramide-cream", {
-			title: "Ceramide Moisturizer",
-			tag: "Barrier Repair",
-			levelClass: "good",
-			note: "Lock in moisture with a ceramide-rich cream morning and night.",
-			skinTypes: ["all"],
-		});
+		addProductMatches(
+			"dry-air",
+			findProducts({
+				skinTags: ["dry", "sensitive", "combination"],
+				types: ["Cream", "Treatment", "Serum", "Cleanser"],
+			}, 2),
+			{
+				tag: "Dry-Air Essential",
+				levelClass: "warn",
+				note: "Use a hydrating formula to avoid tightness after cleansing.",
+				skinTypes: ["all"],
+			},
+			[
+				{
+					title: "Hydrating Cleanser",
+					tag: "Dry-Air Essential",
+					levelClass: "warn",
+					note: "Use a non-foaming cleanser with glycerin to avoid tightness after washing.",
+					skinTypes: ["all"],
+				},
+				{
+					title: "Ceramide Moisturizer",
+					tag: "Barrier Repair",
+					levelClass: "good",
+					note: "Lock in moisture with a ceramide-rich cream morning and night.",
+					skinTypes: ["all"],
+				},
+			]
+		);
 	}
 
 	if (humidity > 70) {
 		reasons.push("High humidity can increase sweat and clog-prone shine.");
-		addItem("gel-moisturizer", {
-			title: "Gel Moisturizer",
-			tag: "Humidity Friendly",
-			levelClass: "good",
-			note: "Choose a lightweight, non-comedogenic gel so skin stays balanced.",
-			skinTypes: ["all"],
-		});
-		addItem("niacinamide", {
-			title: "Niacinamide Serum (4-10%)",
-			tag: "Oil Balance",
-			levelClass: "good",
-			note: "Apply once daily to reduce excess oil and visible pores.",
-			skinTypes: ["oily", "acne-prone"],
-		});
+		addProductMatches(
+			"humidity",
+			findProducts({
+				skinTags: ["oily", "combination"],
+				types: ["Cleanser", "Serum", "Toner"],
+			}, 2),
+			{
+				tag: "Humidity Friendly",
+				levelClass: "good",
+				note: "Choose a lightweight, non-comedogenic formula so skin stays balanced.",
+				skinTypes: ["all"],
+			},
+			[
+				{
+					title: "Gel Moisturizer",
+					tag: "Humidity Friendly",
+					levelClass: "good",
+					note: "Choose a lightweight, non-comedogenic gel so skin stays balanced.",
+					skinTypes: ["all"],
+				},
+				{
+					title: "Niacinamide Serum (4-10%)",
+					tag: "Oil Balance",
+					levelClass: "good",
+					note: "Apply once daily to reduce excess oil and visible pores.",
+					skinTypes: ["oily", "acne-prone"],
+				},
+			]
+		);
 	}
 
 	if (aqi > 100 || pm25 > 35) {
 		reasons.push("Elevated pollution can increase oxidative stress on skin.");
-		addItem("antioxidant", {
-			title: "Antioxidant Serum",
-			tag: "Pollution Shield",
-			levelClass: "bad",
-			note: "Use vitamin C or green tea antioxidants in the morning before sunscreen.",
-			skinTypes: ["all"],
-		});
-		addItem("double-cleanse", {
-			title: "Evening Double Cleanse",
-			tag: "Air Quality Support",
-			levelClass: "warn",
-			note: "Break down sunscreen and particulate buildup with an oil cleanse first.",
-			skinTypes: ["all"],
-		});
+		addProductMatches(
+			"pollution",
+			findProducts({
+				skinTags: ["sensitive", "acneProne", "combination"],
+				types: ["Cleanser", "Treatment", "Serum"],
+			}, 2),
+			{
+				tag: "Pollution Shield",
+				levelClass: "bad",
+				note: "Look for antioxidant-rich and cleansing support for evening routines.",
+				skinTypes: ["all"],
+			},
+			[
+				{
+					title: "Antioxidant Serum",
+					tag: "Pollution Shield",
+					levelClass: "bad",
+					note: "Use vitamin C or green tea antioxidants in the morning before sunscreen.",
+					skinTypes: ["all"],
+				},
+				{
+					title: "Evening Double Cleanse",
+					tag: "Air Quality Support",
+					levelClass: "warn",
+					note: "Break down sunscreen and particulate buildup with a gentle second cleanse.",
+					skinTypes: ["all"],
+				},
+			]
+		);
 	}
 
 	if (uv >= 6) {
@@ -236,68 +393,158 @@ function buildRecommendations(data, skinType = "all") {
 
 	if (temp <= 5) {
 		reasons.push("Cold air can increase transepidermal water loss.");
-		addItem("occlusive", {
-			title: "Occlusive Night Balm",
-			tag: "Cold Weather",
-			levelClass: "warn",
-			note: "Seal in hydration at night with petrolatum or squalane.",
-			skinTypes: ["dry", "sensitive"],
-		});
+		addProductMatches(
+			"cold-weather",
+			findProducts({
+				skinTags: ["dry", "sensitive"],
+				types: ["Cream", "Treatment", "Serum"],
+			}, 2),
+			{
+				tag: "Cold Weather",
+				levelClass: "warn",
+				note: "Seal in hydration at night with richer, protective formulas.",
+				skinTypes: ["dry", "sensitive"],
+			},
+			[
+				{
+					title: "Occlusive Night Balm",
+					tag: "Cold Weather",
+					levelClass: "warn",
+					note: "Seal in hydration at night with petrolatum or squalane.",
+					skinTypes: ["dry", "sensitive"],
+				},
+			]
+		);
 	}
 
 	if (temp >= 28) {
 		reasons.push("Hot weather favors sweat-resistant, lightweight formulas.");
-		addItem("light-lotion", {
-			title: "Lightweight Lotion",
-			tag: "Heat Friendly",
-			levelClass: "good",
-			note: "Swap heavy creams for water-based hydration in daytime.",
-			skinTypes: ["oily", "acne-prone"],
-		});
+		addProductMatches(
+			"heat",
+			findProducts({
+				skinTags: ["oily", "acneProne"],
+				types: ["Cleanser", "Serum", "Toner"],
+			}, 2),
+			{
+				tag: "Heat Friendly",
+				levelClass: "good",
+				note: "Swap heavy creams for lighter, more breathable textures in daytime.",
+				skinTypes: ["oily", "acne-prone"],
+			},
+			[
+				{
+					title: "Lightweight Lotion",
+					tag: "Heat Friendly",
+					levelClass: "good",
+					note: "Swap heavy creams for water-based hydration in daytime.",
+					skinTypes: ["oily", "acne-prone"],
+				},
+			]
+		);
 	}
 
 	if (skinType === "oily") {
 		profileReasons.push("Oily skin benefits from lightweight, sebum-balancing textures.");
-		addItem("oily-bha", {
-			title: "BHA Leave-On Exfoliant (0.5-2%)",
-			tag: "Oily Skin Focus",
-			levelClass: "good",
-			note: "Use 2-4 nights weekly to keep pores clear and control shine.",
-			skinTypes: ["oily", "acne-prone"],
-		});
+		addProductMatches(
+			"oily-profile",
+			findProducts({
+				skinTags: ["oily"],
+				types: ["Cleanser", "Serum", "Toner"],
+			}, 2),
+			{
+				tag: "Oily Skin Focus",
+				levelClass: "good",
+				note: "Use oil-friendly products that keep pores clear without stripping skin.",
+				skinTypes: ["oily", "acne-prone"],
+			},
+			[
+				{
+					title: "BHA Leave-On Exfoliant (0.5-2%)",
+					tag: "Oily Skin Focus",
+					levelClass: "good",
+					note: "Use 2-4 nights weekly to keep pores clear and control shine.",
+					skinTypes: ["oily", "acne-prone"],
+				},
+			]
+		);
 	}
 
 	if (skinType === "dry") {
 		profileReasons.push("Dry skin needs humectants and stronger barrier support.");
-		addItem("dry-hyaluronic", {
-			title: "Hyaluronic + Panthenol Serum",
-			tag: "Dry Skin Focus",
-			levelClass: "good",
-			note: "Apply to damp skin, then seal with cream to reduce dehydration.",
-			skinTypes: ["dry"],
-		});
+		addProductMatches(
+			"dry-profile",
+			findProducts({
+				skinTags: ["dry"],
+				types: ["Cream", "Serum", "Treatment"],
+			}, 2),
+			{
+				tag: "Dry Skin Focus",
+				levelClass: "good",
+				note: "Apply to damp skin, then seal with cream to reduce dehydration.",
+				skinTypes: ["dry"],
+			},
+			[
+				{
+					title: "Hyaluronic + Panthenol Serum",
+					tag: "Dry Skin Focus",
+					levelClass: "good",
+					note: "Apply to damp skin, then seal with cream to reduce dehydration.",
+					skinTypes: ["dry"],
+				},
+			]
+		);
 	}
 
 	if (skinType === "sensitive") {
 		profileReasons.push("Sensitive skin does best with calming, fragrance-free formulas.");
-		addItem("sensitive-cica", {
-			title: "Cica or Oat Barrier Cream",
-			tag: "Sensitive Skin Focus",
-			levelClass: "good",
-			note: "Choose fragrance-free creams with centella, oat, or allantoin.",
-			skinTypes: ["sensitive"],
-		});
+		addProductMatches(
+			"sensitive-profile",
+			findProducts({
+				skinTags: ["sensitive"],
+				types: ["Cream", "Treatment", "Cleanser"],
+			}, 2),
+			{
+				tag: "Sensitive Skin Focus",
+				levelClass: "good",
+				note: "Choose fragrance-free formulas with calming botanicals.",
+				skinTypes: ["sensitive"],
+			},
+			[
+				{
+					title: "Cica or Oat Barrier Cream",
+					tag: "Sensitive Skin Focus",
+					levelClass: "good",
+					note: "Choose fragrance-free creams with centella, oat, or allantoin.",
+					skinTypes: ["sensitive"],
+				},
+			]
+		);
 	}
 
 	if (skinType === "acne-prone") {
 		profileReasons.push("Acne-prone skin needs clear-pore support with non-comedogenic hydration.");
-		addItem("acne-azelaic", {
-			title: "Azelaic Acid (10-15%)",
-			tag: "Acne-Prone Focus",
-			levelClass: "warn",
-			note: "Use once daily to support clearer skin and calmer post-blemish marks.",
-			skinTypes: ["acne-prone"],
-		});
+		addProductMatches(
+			"acne-profile",
+			findProducts({
+				skinTags: ["acneProne"],
+				types: ["Serum", "Cleanser", "Treatment"],
+			}, 2),
+			{
+				tag: "Acne-Prone Focus",
+				levelClass: "warn",
+				note: "Use non-comedogenic support that helps calm breakouts and control oil.",
+				skinTypes: ["acne-prone"],
+			},
+			[
+				{
+					title: "Azelaic Acid (10-15%)",
+					tag: "Acne-Prone Focus",
+					levelClass: "warn",
+					note: "Use once daily to support clearer skin and calmer post-blemish marks.",
+					skinTypes: ["acne-prone"],
+				},
+			]
+		);
 	}
 
 	if (items.size === 0) {
@@ -399,6 +646,7 @@ function renderRecommendations(data) {
 			(product, index) => `
 				<article class="rec-card" style="animation-delay:${index * 110}ms">
 					<h3>${product.title}</h3>
+					<p class="product-meta">${product.meta || ""}</p>
 					<span class="tag ${product.levelClass}">${product.tag}</span>
 					<p>${product.note}</p>
 				</article>
@@ -428,6 +676,7 @@ async function loadWeatherAndAdvice() {
 	elements.refreshBtn.disabled = true;
 
 	try {
+		await loadProductCatalog();
 		const data = await fetchNYCData();
 		latestData = data;
 		renderMetrics(data);
