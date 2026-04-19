@@ -132,6 +132,13 @@ function round(value) {
 	return Math.round(value);
 }
 
+function celsiusToFahrenheit(celsius) {
+	if (celsius == null || Number.isNaN(celsius)) {
+		return null;
+	}
+	return (celsius * 9) / 5 + 32;
+}
+
 function formatSkinTypeLabel(skinType) {
 	if (skinType === "all") {
 		return "all skin types";
@@ -255,7 +262,7 @@ function buildRecommendations(data, skinType = "all") {
 	const aqi = data.air.us_aqi;
 	const pm25 = data.air.pm2_5;
 	const uv = data.uvIndex;
-	const temp = data.weather.temperature_2m;
+	const temp = celsiusToFahrenheit(data.weather.temperature_2m);
 
 	const items = new Map();
 	const reasons = [];
@@ -410,7 +417,7 @@ function buildRecommendations(data, skinType = "all") {
 		});
 	}
 
-	if (temp <= 5) {
+	if (temp <= 41) {
 		reasons.push("Cold air can increase transepidermal water loss.");
 		addProductMatches(
 			"cold-weather",
@@ -436,7 +443,7 @@ function buildRecommendations(data, skinType = "all") {
 		);
 	}
 
-	if (temp >= 28) {
+	if (temp >= 82) {
 		reasons.push("Hot weather favors sweat-resistant, lightweight formulas.");
 		addProductMatches(
 			"heat",
@@ -611,8 +618,8 @@ function renderMetrics(data) {
 	const cards = [
 		{
 			label: "Temperature",
-			value: `${round(data.weather.temperature_2m)}°C`,
-			note: `Feels like ${round(data.weather.apparent_temperature)}°C`,
+			value: `${round(celsiusToFahrenheit(data.weather.temperature_2m))}°F`,
+			note: `Feels like ${round(celsiusToFahrenheit(data.weather.apparent_temperature))}°F`,
 		},
 		{
 			label: "Humidity",
