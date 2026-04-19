@@ -375,7 +375,7 @@ h2 {
 }
 
 .learn-bullets li::before {
-	content: "✓";
+	content: "•";
 	position: absolute;
 	left: -1.1rem;
 	color: var(--primary);
