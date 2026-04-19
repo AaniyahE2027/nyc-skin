@@ -16,6 +16,32 @@
   <div class="bg-shape shape-1" aria-hidden="true"></div>
   <div class="bg-shape shape-2" aria-hidden="true"></div>
 
+  <!-- Welcome Modal -->
+  <div id="welcome-modal" class="modal-overlay" role="dialog" aria-labelledby="modal-title" aria-modal="true">
+    <div class="modal-content">
+      <h2 id="modal-title">Welcome to NYC Skin Advisor!</h2>
+      
+      <div class="modal-section">
+        <label class="section-label">How do you identify?</label>
+        <div class="button-group">
+          <button class="gender-btn" data-gender="female">Female</button>
+          <button class="gender-btn" data-gender="male">Male</button>
+          <button class="gender-btn" data-gender="prefer-not">Prefer Not to Say</button>
+        </div>
+      </div>
+
+      <div class="modal-section">
+        <label class="section-label">Would you like makeup tips based on temperature changes?</label>
+        <div class="button-group">
+          <button class="makeup-btn" data-makeup="yes">Yes, Show Tips</button>
+          <button class="makeup-btn" data-makeup="no">No, Just Skincare</button>
+        </div>
+      </div>
+
+      <button id="modal-close-btn" class="modal-close-btn">Get Started</button>
+    </div>
+  </div>
+
   <main class="app-shell">
     <header class="hero">
       <p class="eyebrow">LIVE CITY SKIN REPORT</p>

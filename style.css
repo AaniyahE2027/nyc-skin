@@ -371,6 +371,135 @@ h2 {
 	}
 }
 
+/* Modal Styles */
+.modal-overlay {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(19, 36, 50, 0.6);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	z-index: 1000;
+	backdrop-filter: blur(4px);
+	animation: fade-in 300ms ease both;
+}
+
+.modal-overlay.hidden {
+	display: none;
+}
+
+.modal-content {
+	background: var(--card);
+	border: 1px solid var(--line);
+	border-radius: 28px;
+	padding: 2rem;
+	width: min(500px, 90vw);
+	box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+	animation: scale-in 400ms ease both;
+}
+
+#modal-title {
+	margin: 0 0 1.5rem;
+	font-size: clamp(1.5rem, 3vw, 2rem);
+	color: var(--ink);
+	text-align: center;
+}
+
+.modal-section {
+	margin-bottom: 1.8rem;
+}
+
+.section-label {
+	display: block;
+	margin-bottom: 0.8rem;
+	font-size: 0.95rem;
+	font-weight: 700;
+	color: var(--ink);
+}
+
+.button-group {
+	display: flex;
+	flex-direction: column;
+	gap: 0.6rem;
+}
+
+.gender-btn,
+.makeup-btn {
+	border: 2px solid var(--line);
+	background: #fff;
+	border-radius: 12px;
+	padding: 0.9rem 1rem;
+	font: inherit;
+	font-size: 0.95rem;
+	font-weight: 600;
+	color: var(--ink);
+	cursor: pointer;
+	transition: all 180ms ease;
+	text-align: left;
+}
+
+.gender-btn:hover,
+.makeup-btn:hover {
+	border-color: var(--primary);
+	background: rgba(0, 122, 120, 0.05);
+	transform: translateX(2px);
+}
+
+.gender-btn.active,
+.makeup-btn.active {
+	border-color: var(--primary);
+	background: rgba(0, 122, 120, 0.15);
+	color: var(--primary);
+	font-weight: 700;
+	box-shadow: 0 0 0 3px rgba(0, 122, 120, 0.1);
+}
+
+#modal-close-btn {
+	width: 100%;
+	border: 0;
+	border-radius: 12px;
+	background: linear-gradient(120deg, var(--primary), #0d9794);
+	color: #fff;
+	font-weight: 700;
+	padding: 1rem;
+	font-size: 1rem;
+	cursor: pointer;
+	transition: all 180ms ease;
+	margin-top: 1rem;
+}
+
+#modal-close-btn:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 8px 20px rgba(0, 122, 120, 0.3);
+}
+
+#modal-close-btn:active {
+	transform: translateY(0);
+}
+
+@keyframes fade-in {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+
+@keyframes scale-in {
+	from {
+		opacity: 0;
+		transform: scale(0.9);
+	}
+	to {
+		opacity: 1;
+		transform: scale(1);
+	}
+}
+
 @media (max-width: 620px) {
 	.app-shell {
 		width: min(96vw, 1080px);

@@ -12,9 +12,15 @@ const elements = {
 	metricsGrid: document.getElementById("metrics-grid"),
 	summaryBanner: document.getElementById("summary-banner"),
 	recommendations: document.getElementById("recommendations"),
+	modal: document.getElementById("welcome-modal"),
+	modalClose: document.getElementById("modal-close-btn"),
 };
 
 let latestData = null;
+let userPreferences = {
+	gender: null,
+	wantsMakeupTips: null,
+};
 
 const weatherCodeMap = {
 	0: "Clear sky",
@@ -46,6 +52,56 @@ const weatherCodeMap = {
 	96: "Thunderstorm and hail",
 	99: "Strong thunderstorm and hail",
 };
+
+// Modal and Preferences Functions
+function loadUserPreferences() {
+	const saved = localStorage.getItem("nyc-skin-preferences");
+	if (saved) {
+		userPreferences = JSON.parse(saved);
+		return true;
+	}
+	return false;
+}
+
+function saveUserPreferences() {
+	localStorage.setItem("nyc-skin-preferences", JSON.stringify(userPreferences));
+}
+
+function initializeModal() {
+	if (loadUserPreferences()) {
+		// User has already filled the modal, hide it
+		elements.modal.classList.add("hidden");
+		return;
+	}
+
+	// Setup gender button handlers
+	document.querySelectorAll(".gender-btn").forEach((btn) => {
+		btn.addEventListener("click", () => {
+			document.querySelectorAll(".gender-btn").forEach((b) => b.classList.remove("active"));
+			btn.classList.add("active");
+			userPreferences.gender = btn.dataset.gender;
+		});
+	});
+
+	// Setup makeup button handlers
+	document.querySelectorAll(".makeup-btn").forEach((btn) => {
+		btn.addEventListener("click", () => {
+			document.querySelectorAll(".makeup-btn").forEach((b) => b.classList.remove("active"));
+			btn.classList.add("active");
+			userPreferences.wantsMakeupTips = btn.dataset.makeup === "yes";
+		});
+	});
+
+	// Setup close button
+	elements.modalClose.addEventListener("click", () => {
+		if (userPreferences.gender !== null && userPreferences.wantsMakeupTips !== null) {
+			saveUserPreferences();
+			elements.modal.classList.add("hidden");
+		} else {
+			alert("Please select both options to continue.");
+		}
+	});
+}
 
 async function fetchNYCData() {
 	const weatherUrl = new URL("https://api.open-meteo.com/v1/forecast");
@@ -745,5 +801,6 @@ if (learnToggle && learnContent) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+	initializeModal();
 	loadWeatherAndAdvice();
 });
