@@ -282,6 +282,83 @@ h2 {
 	font-weight: 700;
 }
 
+.learn-toggle {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	border: 1px solid var(--line);
+	background: #fff;
+	border-radius: 999px;
+	padding: 0.4rem 0.8rem;
+	font: inherit;
+	font-size: 0.9rem;
+	font-weight: 700;
+	color: var(--primary);
+	cursor: pointer;
+	transition: all 180ms ease;
+}
+
+.learn-toggle:hover {
+	border-color: var(--primary);
+	background: rgba(0, 122, 120, 0.08);
+	transform: translateY(-1px);
+	box-shadow: 0 3px 12px rgba(0, 122, 120, 0.15);
+}
+
+.learn-toggle:active {
+	transform: translateY(0);
+}
+
+.toggle-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1.2em;
+	height: 1.2em;
+	transition: transform 300ms ease;
+}
+
+.learn-toggle[aria-expanded="true"] .toggle-icon {
+	transform: rotate(45deg);
+}
+
+.learn-content {
+	display: grid;
+	gap: 1rem;
+	max-height: 0;
+	overflow: hidden;
+	opacity: 0;
+	transition: max-height 400ms ease, opacity 400ms ease, margin 400ms ease;
+}
+
+.learn-content:not([hidden]) {
+	max-height: 1200px;
+	opacity: 1;
+	margin-top: 1rem;
+}
+
+.learn-section {
+	padding: 0.9rem;
+	border-left: 3px solid var(--primary);
+	background: linear-gradient(90deg, rgba(0, 122, 120, 0.08), transparent);
+	border-radius: 8px;
+}
+
+.learn-section h3 {
+	margin: 0 0 0.4rem;
+	font-size: 1rem;
+	font-family: "Space Grotesk", sans-serif;
+	font-weight: 700;
+	color: var(--ink);
+}
+
+.learn-section p {
+	margin: 0;
+	font-size: 0.92rem;
+	line-height: 1.5;
+	color: var(--muted);
+}
+
 @keyframes rise-in {
 	from {
 		opacity: 0;

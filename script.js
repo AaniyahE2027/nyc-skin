@@ -733,6 +733,17 @@ elements.skinTypeFilter.addEventListener("change", () => {
 	setStatus(`Filter applied: ${formatSkinTypeLabel(elements.skinTypeFilter.value)}.`);
 });
 
+const learnToggle = document.getElementById("learn-more-toggle");
+const learnContent = document.getElementById("learn-content");
+
+if (learnToggle && learnContent) {
+	learnToggle.addEventListener("click", () => {
+		const isExpanded = learnToggle.getAttribute("aria-expanded") === "true";
+		learnToggle.setAttribute("aria-expanded", !isExpanded);
+		learnContent.hidden = isExpanded;
+	});
+}
+
 document.addEventListener("DOMContentLoaded", () => {
 	loadWeatherAndAdvice();
 });
