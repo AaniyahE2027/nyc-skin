@@ -9,9 +9,7 @@ const elements = {
 	updated: document.getElementById("last-updated"),
 	refreshBtn: document.getElementById("refresh-btn"),
 	skinTypeFilter: document.getElementById("skin-type-filter"),
-	forecastSelector: document.getElementById("forecast-selector"),
 	summaryBanner: document.getElementById("summary-banner"),
-	forecastInfo: document.getElementById("forecast-info"),
 	recommendations: document.getElementById("recommendations"),
 	modal: document.getElementById("welcome-modal"),
 	modalClose: document.getElementById("modal-close-btn"),
@@ -68,13 +66,15 @@ function saveUserPreferences() {
 	localStorage.setItem("nyc-skin-preferences", JSON.stringify(userPreferences));
 }
 
-function initializeModal() {
-	if (loadUserPreferences()) {
-		// User has already filled the modal, hide it
-		elements.modal.classList.add("hidden");
-		return;
-	}
+function showPreferencesModal() {
+	elements.modal.classList.remove("hidden");
+	document.querySelectorAll(".gender-btn").forEach((b) => b.classList.remove("active"));
+	document.querySelectorAll(".makeup-btn").forEach((b) => b.classList.remove("active"));
+	userPreferences.gender = null;
+	userPreferences.wantsMakeupTips = null;
+}
 
+function initializeModal() {
 	// Setup gender button handlers
 	document.querySelectorAll(".gender-btn").forEach((btn) => {
 		btn.addEventListener("click", () => {
@@ -102,70 +102,53 @@ function initializeModal() {
 			alert("Please select both options to continue.");
 		}
 	});
+
+	if (loadUserPreferences()) {
+		// User has already filled the modal, hide it
+		elements.modal.classList.add("hidden");
+	}
 }
 
 async function fetchNYCData() {
-	try {
-		console.log("Fetching NYC weather data...");
+	const weatherUrl = new URL("https://api.open-meteo.com/v1/forecast");
+	weatherUrl.searchParams.set("latitude", NYC.latitude);
+	weatherUrl.searchParams.set("longitude", NYC.longitude);
+	weatherUrl.searchParams.set(
+		"current",
+		"temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m"
+	);
+	weatherUrl.searchParams.set("hourly", "uv_index");
+weatherUrl.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,relative_humidity_2m_max,weather_code,uv_index_max");
+weatherUrl.searchParams.set("timezone", "auto");
 
-		const weatherUrl = new URL("https://api.open-meteo.com/v1/forecast");
-		weatherUrl.searchParams.set("latitude", NYC.latitude);
-		weatherUrl.searchParams.set("longitude", NYC.longitude);
-		weatherUrl.searchParams.set(
-			"current",
-			"temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m"
-		);
-		weatherUrl.searchParams.set("hourly", "uv_index");
-		weatherUrl.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,relative_humidity_2m_max,weather_code,uv_index_max");
-		weatherUrl.searchParams.set("timezone", "auto");
+const airUrl = new URL("https://air-quality-api.open-meteo.com/v1/air-quality");
+airUrl.searchParams.set("daily", "us_aqi_max");
+	airUrl.searchParams.set("latitude", NYC.latitude);
+	airUrl.searchParams.set("longitude", NYC.longitude);
+	airUrl.searchParams.set("current", "us_aqi,pm2_5");
+	airUrl.searchParams.set("timezone", "auto");
 
-		console.log("Weather URL:", weatherUrl.toString());
+	const [weatherResp, airResp] = await Promise.all([
+		fetch(weatherUrl),
+		fetch(airUrl),
+	]);
 
-		const airUrl = new URL("https://air-quality-api.open-meteo.com/v1/air-quality");
-		airUrl.searchParams.set("latitude", NYC.latitude);
-		airUrl.searchParams.set("longitude", NYC.longitude);
-		airUrl.searchParams.set("current", "us_aqi,pm2_5");
-		airUrl.searchParams.set("daily", "us_aqi_max");
-		airUrl.searchParams.set("timezone", "auto");
-
-		console.log("Air Quality URL:", airUrl.toString());
-
-		const [weatherResp, airResp] = await Promise.all([
-			fetch(weatherUrl, { signal: AbortSignal.timeout(10000) }), // 10 second timeout
-			fetch(airUrl, { signal: AbortSignal.timeout(10000) }),
-		]);
-
-		console.log("Weather response status:", weatherResp.status);
-		console.log("Air response status:", airResp.status);
-
-		if (!weatherResp.ok) {
-			throw new Error(`Weather API error: ${weatherResp.status} ${weatherResp.statusText}`);
-		}
-		if (!airResp.ok) {
-			throw new Error(`Air Quality API error: ${airResp.status} ${airResp.statusText}`);
-		}
-
-		const weatherData = await weatherResp.json();
-		const airData = await airResp.json();
-
-		console.log("Weather data received:", weatherData);
-		console.log("Air data received:", airData);
-
-		const currentTime = weatherData.current?.time;
-		const uvIndex = getUvForCurrentHour(weatherData.hourly, currentTime);
-
-		return {
-			weather: weatherData.current,
-			air: airData.current,
-			uvIndex,
-			currentTime,
-			dailyForecast: weatherData.daily || {},
-			dailyAirQuality: airData.daily || {},
-		};
-	} catch (error) {
-		console.error("Error fetching NYC data:", error);
-		throw error;
+	if (!weatherResp.ok || !airResp.ok) {
+		throw new Error("Unable to fetch live weather data right now.");
 	}
+
+	const weatherData = await weatherResp.json();
+	const airData = await airResp.json();
+
+	const currentTime = weatherData.current?.time;
+	const uvIndex = getUvForCurrentHour(weatherData.hourly, currentTime);
+
+	return {
+		weather: weatherData.current,
+		air: airData.current,
+		uvIndex,
+		currentTime,
+	};
 }
 
 function getUvForCurrentHour(hourly, currentTime) {
@@ -204,6 +187,40 @@ function getAqiTag(aqi) {
 
 function weatherDescription(code) {
 	return weatherCodeMap[code] || "Mixed conditions";
+}
+
+function getWeatherIcon(code) {
+	const iconMap = {
+		0: "☀️",
+		1: "🌤️",
+		2: "⛅",
+		3: "☁️",
+		45: "🌫️",
+		48: "🌫️",
+		51: "🌦️",
+		53: "🌦️",
+		55: "🌦️",
+		56: "🌨️",
+		57: "🌨️",
+		61: "🌧️",
+		63: "🌧️",
+		65: "🌧️",
+		66: "🌨️",
+		67: "🌨️",
+		71: "❄️",
+		73: "❄️",
+		75: "❄️",
+		77: "❄️",
+		80: "🌦️",
+		81: "🌦️",
+		82: "🌦️",
+		85: "🌨️",
+		86: "🌨️",
+		95: "⛈️",
+		96: "⛈️",
+		99: "⛈️",
+	};
+	return iconMap[code] || "☀️";
 }
 
 function round(value) {
@@ -336,62 +353,6 @@ function findProducts(criteria = {}, limit = 3) {
 		.sort((a, b) => b.score - a.score);
 
 	return matches.slice(0, limit).map((entry) => entry.product);
-}
-
-function extractForecastData(data, dateIndex) {
-	if (dateIndex === 0) {
-		return data;
-	}
-
-	const dailyForecast = data.dailyForecast;
-	const dailyAir = data.dailyAirQuality;
-
-	if (!dailyForecast.time || !Array.isArray(dailyForecast.time) || dateIndex >= dailyForecast.time.length) {
-		return data;
-	}
-
-	const forecastWeather = {
-		temperature_2m: dailyForecast.temperature_2m_max ? dailyForecast.temperature_2m_max[dateIndex] : data.weather.temperature_2m,
-		apparent_temperature: dailyForecast.temperature_2m_max ? dailyForecast.temperature_2m_max[dateIndex] : data.weather.apparent_temperature,
-		relative_humidity_2m: dailyForecast.relative_humidity_2m_max ? dailyForecast.relative_humidity_2m_max[dateIndex] : data.weather.relative_humidity_2m,
-		weather_code: dailyForecast.weather_code ? dailyForecast.weather_code[dateIndex] : data.weather.weather_code,
-		wind_speed_10m: data.weather.wind_speed_10m,
-	};
-
-	const forecastAir = {
-		us_aqi: dailyAir.us_aqi_max ? dailyAir.us_aqi_max[dateIndex] : data.air.us_aqi,
-		pm2_5: data.air.pm2_5,
-	};
-
-	const uvIndex = dailyForecast.uv_index_max ? dailyForecast.uv_index_max[dateIndex] : data.uvIndex;
-
-	return {
-		weather: forecastWeather,
-		air: forecastAir,
-		uvIndex: uvIndex,
-		currentTime: dailyForecast.time ? dailyForecast.time[dateIndex] : data.currentTime,
-		dailyForecast: dailyForecast,
-		dailyAirQuality: dailyAir,
-	};
-}
-
-function populateForecastSelector(data) {
-	const selector = elements.forecastSelector;
-	if (!data.dailyForecast.time || !Array.isArray(data.dailyForecast.time)) {
-		return;
-	}
-
-	const times = data.dailyForecast.time;
-	const maxDays = Math.min(times.length, 7);
-
-	for (let i = 1; i < maxDays; i += 1) {
-		const date = new Date(times[i]);
-		const dayName = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(date);
-		const option = document.createElement("option");
-		option.value = i;
-		option.textContent = dayName;
-		selector.appendChild(option);
-	}
 }
 
 function buildRecommendations(data, skinType = "all") {
@@ -750,24 +711,15 @@ function buildRecommendations(data, skinType = "all") {
 }
 
 function renderMetrics(data) {
-	const aqiTag = getAqiTag(data.air.us_aqi);
-
-	// Update weather icon based on weather code
 	const weatherIcon = getWeatherIcon(data.weather.weather_code);
-	document.getElementById('weather-icon').textContent = weatherIcon;
-
-	// Update temperature
-	document.getElementById('weather-temp').textContent = `${round(celsiusToFahrenheit(data.weather.temperature_2m))}°F`;
-
-	// Update weather details
-	document.getElementById('feels-like').textContent = `${round(celsiusToFahrenheit(data.weather.apparent_temperature))}°F`;
-	document.getElementById('humidity').textContent = `${round(data.weather.relative_humidity_2m)}%`;
-	document.getElementById('wind').textContent = `${round(data.weather.wind_speed_10m)} km/h`;
-	document.getElementById('precip').textContent = `${round(data.air.pm2_5)} µg/m³`; // Using PM2.5 as precipitation proxy
-	document.getElementById('aqi').textContent = `${round(data.air.us_aqi)} µg/m³`;
-
-	// Update weather condition description
-	document.getElementById('conditions').textContent = weatherDescription(data.weather.weather_code);
+	document.getElementById("weather-icon").textContent = weatherIcon;
+	document.getElementById("weather-temp").textContent = `${round(celsiusToFahrenheit(data.weather.temperature_2m))}°F`;
+	document.getElementById("feels-like").textContent = `${round(celsiusToFahrenheit(data.weather.apparent_temperature))}°F`;
+	document.getElementById("humidity").textContent = `${round(data.weather.relative_humidity_2m)}%`;
+	document.getElementById("wind").textContent = `${round(data.weather.wind_speed_10m)} km/h`;
+	document.getElementById("precip").textContent = data.weather.precipitation != null ? `${round(data.weather.precipitation)} mm` : "--";
+	document.getElementById("aqi").textContent = `${round(data.air.us_aqi)} µg/m³`;
+	document.getElementById("conditions").textContent = weatherDescription(data.weather.weather_code);
 }
 
 function renderRecommendations(data) {
@@ -807,12 +759,10 @@ function setStatus(message, isError = false) {
 }
 
 async function loadWeatherAndAdvice() {
-	setStatus("Loading live NYC weather and air quality...");
+	setStatus("Loading live weather and air quality...");
 	elements.refreshBtn.disabled = true;
 
 	try {
-		console.log("Starting data load...");
-
 		// Load weather data and product catalog in parallel
 		const [data] = await Promise.all([
 			fetchNYCData(),
@@ -820,29 +770,16 @@ async function loadWeatherAndAdvice() {
 				console.warn("Product catalog unavailable:", error);
 			}),
 		]);
-
-		console.log("Data loaded successfully:", data);
+		
 		latestData = data;
 		renderMetrics(data);
-		populateForecastSelector(data);
 		renderRecommendations(data);
 		updateTimestamp(data.currentTime);
 		setStatus("Data synced. Recommendations are live for current NYC conditions.");
 	} catch (error) {
-		console.error("Failed to load weather data:", error);
-		setStatus(`Could not load live data: ${error.message}. Using demo data.`, true);
-
-		// Load fallback/demo data
-		try {
-			await loadProductCatalog();
-			const demoData = getDemoData();
-			latestData = demoData;
-			renderMetrics(demoData);
-			renderRecommendations(demoData);
-			updateTimestamp(demoData.currentTime);
-		} catch (catalogError) {
-			console.error("Even fallback data failed:", catalogError);
-		}
+		console.error(error);
+		setStatus("Could not load live data. Please try again in a moment.", true);
+		elements.updated.textContent = "Live update unavailable";
 	} finally {
 		elements.refreshBtn.disabled = false;
 	}
@@ -850,36 +787,12 @@ async function loadWeatherAndAdvice() {
 
 elements.refreshBtn.addEventListener("click", loadWeatherAndAdvice);
 
-// Add event listener for the new refresh button in weather card
-const refreshBtnCard = document.getElementById("refreshBtn");
-if (refreshBtnCard) {
-	refreshBtnCard.addEventListener("click", loadWeatherAndAdvice);
-}
 elements.skinTypeFilter.addEventListener("change", () => {
 	if (!latestData) {
 		return;
 	}
 	renderRecommendations(latestData);
 	setStatus(`Filter applied: ${formatSkinTypeLabel(elements.skinTypeFilter.value)}.`);
-});
-
-// Add event listener for forecast selector
-elements.forecastSelector.addEventListener("change", () => {
-	if (!latestData) {
-		return;
-	}
-	const selectedIndex = parseInt(elements.forecastSelector.value);
-	const forecastData = extractForecastData(latestData, selectedIndex);
-	renderMetrics(forecastData);
-	renderRecommendations(forecastData);
-	
-	const date = new Date(forecastData.currentTime);
-	const dateString = new Intl.DateTimeFormat("en-US", { 
-		weekday: "long", 
-		month: "long", 
-		day: "numeric" 
-	}).format(date);
-	setStatus(`Showing forecast for ${dateString}.`);
 });
 
 const learnToggle = document.getElementById("learn-more-toggle");
@@ -891,58 +804,6 @@ if (learnToggle && learnContent) {
 		learnToggle.setAttribute("aria-expanded", !isExpanded);
 		learnContent.hidden = isExpanded;
 	});
-}
-
-function getDemoData() {
-	console.log("Loading demo data...");
-
-	return {
-		weather: {
-			temperature_2m: 22,
-			apparent_temperature: 25,
-			relative_humidity_2m: 65,
-			weather_code: 1, // Partly cloudy
-			wind_speed_10m: 8.5,
-		},
-		air: {
-			us_aqi: 45,
-			pm2_5: 12.5,
-		},
-		uvIndex: 6,
-		currentTime: new Date().toISOString(),
-		dailyForecast: {
-			time: [],
-			temperature_2m_max: [],
-			weather_code: [],
-		},
-		dailyAirQuality: {
-			us_aqi_max: [],
-		},
-	};
-}
-
-function displayTopics(topics) {
-  const topicsEl = document.getElementById('topics');
-  topicsEl.innerHTML = '';
-  topics.forEach((topic, index) => {
-    const col = document.createElement('div');
-    col.className = 'col-12 topic-card p-2';
-    const imageHtml = topic.img ? 
-      `<img src="${topic.img}" alt="${topic.title}" class="topic-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : '';
-    const placeholderHtml = `<div class="image-placeholder" data-topic-index="${index}" style="display: ${topic.img ? 'none' : 'flex'};">
-      <div class="placeholder-icon">📷</div>
-      <div class="placeholder-text">Future Image ${index + 1}</div>
-    </div>`;
-    const actionIcon = getTopicIcon(topic.title);
-    col.innerHTML = `
-      <button class="topic-action-button" aria-label="Topic action">${actionIcon}</button>
-      ${imageHtml}
-      ${placeholderHtml}
-      <h6>${topic.title}</h6>
-      <p>${topic.text}</p>
-    `;
-    topicsEl.appendChild(col);
-  });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
