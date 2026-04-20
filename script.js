@@ -275,7 +275,7 @@ Purito,Eye Cream For Brightening,Cream,$$,TRUE,FALSE,FALSE,FALSE,TRUE`;
 let productCatalog = [];
 
 async function loadProductCatalog() {
-	const csvUrl = encodeURI("Skincare Spreadsheet - ORGANIZED.csv");
+	const csvUrl = encodeURI("Skincare Spreadsheet - ORGANIZED (1).csv");
 	try {
 		const response = await fetch(csvUrl);
 		if (!response.ok) {
