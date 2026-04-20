@@ -290,6 +290,29 @@ async function loadProductCatalog() {
 	}
 }
 
+function parseCsvLine(line) {
+	// Handle quoted fields properly
+	const result = [];
+	let current = '';
+	let inQuotes = false;
+	
+	for (let i = 0; i < line.length; i++) {
+		const char = line[i];
+		
+		if (char === '"') {
+			inQuotes = !inQuotes;
+		} else if (char === ',' && !inQuotes) {
+			result.push(current.trim());
+			current = '';
+		} else {
+			current += char;
+		}
+	}
+	
+	result.push(current.trim());
+	return result;
+}
+
 function parseCsvCatalog(csvText) {
 	const rows = csvText
 		.split(/\r?\n/)
@@ -300,12 +323,37 @@ function parseCsvCatalog(csvText) {
 		return [];
 	}
 
-	const headers = rows[0].split(",").map((header) => header.trim());
+	// Parse headers - handle the case where headers might not be quoted
+	let headers = rows[0].split(',').map((header) => header.trim());
+	
+	// If headers parsing failed (only 1 header), try alternative parsing
+	if (headers.length === 1) {
+		headers = parseCsvLine(rows[0]);
+	}
 
 	return rows.slice(1).map((line) => {
-		const values = line.split(",").map((value) => value.trim());
-		const record = headers.reduce((acc, header, index) => {
-			acc[header] = values[index] ?? "";
+		let values;
+		
+		// Try quoted parsing first
+		values = parseCsvLine(line);
+		
+		// If that doesn't give us the right number of fields, try simple split
+		if (values.length !== headers.length) {
+			values = line.split(',').map((value) => value.trim());
+		}
+		
+		// If still not matching, try to reconstruct by taking the last N-1 commas
+		if (values.length !== headers.length && headers.length === 10) {
+			const parts = line.split(',');
+			if (parts.length > 10) {
+				// Take first 9 fields as-is, combine the rest for the last field
+				values = parts.slice(0, 9);
+				values.push(parts.slice(9).join(',').trim());
+			}
+		}
+		
+		const record = headers.reduce((acc, header, i) => {
+			acc[header] = values[i] ?? "";
 			return acc;
 		}, {});
 
