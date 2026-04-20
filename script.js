@@ -118,11 +118,10 @@ async function fetchNYCData() {
 		"temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m"
 	);
 	weatherUrl.searchParams.set("hourly", "uv_index");
-weatherUrl.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,relative_humidity_2m_max,weather_code,uv_index_max");
-weatherUrl.searchParams.set("timezone", "auto");
+	weatherUrl.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,relative_humidity_2m_max,weather_code,uv_index_max");
+	weatherUrl.searchParams.set("timezone", "auto");
 
-const airUrl = new URL("https://air-quality-api.open-meteo.com/v1/air-quality");
-airUrl.searchParams.set("daily", "us_aqi_max");
+	const airUrl = new URL("https://air-quality-api.open-meteo.com/v1/air-quality");
 	airUrl.searchParams.set("latitude", NYC.latitude);
 	airUrl.searchParams.set("longitude", NYC.longitude);
 	airUrl.searchParams.set("current", "us_aqi,pm2_5");
@@ -133,12 +132,20 @@ airUrl.searchParams.set("daily", "us_aqi_max");
 		fetch(airUrl),
 	]);
 
-	if (!weatherResp.ok || !airResp.ok) {
-		throw new Error("Unable to fetch live weather data right now.");
+	if (!weatherResp.ok) {
+		throw new Error(`Weather API failed: ${weatherResp.status} ${weatherResp.statusText}`);
+	}
+	
+	if (!airResp.ok) {
+		throw new Error(`Air Quality API failed: ${airResp.status} ${airResp.statusText}`);
 	}
 
 	const weatherData = await weatherResp.json();
 	const airData = await airResp.json();
+
+	if (!weatherData.current || !airData.current) {
+		throw new Error("Invalid response structure from weather or air quality API");
+	}
 
 	const currentTime = weatherData.current?.time;
 	const uvIndex = getUvForCurrentHour(weatherData.hourly, currentTime);
