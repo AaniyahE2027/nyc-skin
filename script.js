@@ -276,17 +276,47 @@ let productCatalog = [];
 
 async function loadProductCatalog() {
 	const csvUrl = encodeURI("Skincare Spreadsheet - ORGANIZED (1).csv");
+	console.log("🔍 Attempting to load CSV from:", csvUrl);
+	
 	try {
+		console.log("📡 Fetching CSV...");
 		const response = await fetch(csvUrl);
+		console.log("📊 Fetch response status:", response.status, response.statusText);
+		
 		if (!response.ok) {
 			throw new Error(`Failed to fetch product catalog: ${response.status}`);
 		}
 		const csvText = await response.text();
+		console.log("📄 CSV text received, length:", csvText.length);
+		
 		productCatalog = parseCsvCatalog(csvText);
+		console.log(`✓ Product catalog loaded: ${productCatalog.length} products`);
+		console.log('Sample products:', productCatalog.slice(0, 3));
+		
+		// Show in page
+		const loader = document.getElementById('csv-loader');
+		if (loader) {
+			loader.innerHTML = `✓ Loaded ${productCatalog.length} products from CSV`;
+			loader.style.color = 'green';
+			loader.style.fontSize = '12px';
+		}
+		
+		return productCatalog;
 	} catch (error) {
-		console.warn("Product catalog unavailable:", error);
+		console.error("❌ Product catalog load failed:", error);
+		console.log("🔄 Falling back to built-in data");
 		productCatalog = parseCsvCatalog(CSV_FALLBACK_DATA);
-		console.info("Loaded product catalog from built-in fallback data.");
+		console.log(`⚠ Loaded ${productCatalog.length} products from fallback`);
+		
+		// Show in page
+		const loader = document.getElementById('csv-loader');
+		if (loader) {
+			loader.innerHTML = `⚠ Using fallback data (${productCatalog.length} products). CSV failed to load.`;
+			loader.style.color = 'orange';
+			loader.style.fontSize = '12px';
+		}
+		
+		return productCatalog;
 	}
 }
 
@@ -396,6 +426,7 @@ function computeProductScore(product, criteria) {
 
 function findProducts(criteria = {}, limit = 3) {
 	if (!productCatalog.length) {
+		console.warn("Product catalog is empty!");
 		return [];
 	}
 
@@ -407,6 +438,8 @@ function findProducts(criteria = {}, limit = 3) {
 		.filter((entry) => entry.score > 0)
 		.sort((a, b) => b.score - a.score);
 
+	console.log(`findProducts: ${matches.length} matches found with criteria:`, criteria);
+	
 	return matches.slice(0, limit).map((entry) => entry.product);
 }
 
@@ -759,10 +792,14 @@ function buildRecommendations(data, skinType = "all") {
 			? "Showing recommendations for all skin types."
 			: profileReasons[0] || `Filtered for ${formatSkinTypeLabel(skinType)}.`;
 
-	return {
+	const result = {
 		summary: `${summaryBase} ${profileSummary}`,
 		products: filteredProducts,
 	};
+	
+	console.log(`buildRecommendations: returning ${result.products.length} products`);
+	
+	return result;
 }
 
 function renderMetrics(data) {

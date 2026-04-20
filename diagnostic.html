@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Full Diagnostic</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #222; color: #0f0; }
+        h1 { color: #0ff; }
+        .section { background: #333; padding: 15px; margin: 10px 0; border: 1px solid #0f0; border-radius: 5px; }
+        .success { color: #0f0; }
+        .error { color: #f00; }
+        .warn { color: #ff8800; }
+        code { background: #111; padding: 2px 6px; border-radius: 3px; }
+        button { background: #0f0; color: #000; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>NYC Skin - Full System Diagnostic</h1>
+    
+    <div class="section">
+        <h2>1. CSV File Access</h2>
+        <p id="test1">Testing...</p>
+    </div>
+    
+    <div class="section">
+        <h2>2. CSV Parsing</h2>
+        <p id="test2">Waiting...</p>
+    </div>
+    
+    <div class="section">
+        <h2>3. Product Matching</h2>
+        <p id="test3">Waiting...</p>
+    </div>
+    
+    <div class="section">
+        <h2>4. Real-time Data Fetch</h2>
+        <p id="test4">Waiting...</p>
+    </div>
+    
+    <div class="section">
+        <button onclick="runAllTests()">Re-run Tests</button>
+    </div>
+
+    <script>
+        function setStatus(test, html) {
+            document.getElementById(test).innerHTML = html;
+        }
+
+        function toBoolean(value) {
+            return String(value).trim().toUpperCase() === "TRUE";
+        }
+
+        function parseCsvLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') inQuotes = !inQuotes;
+                else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            result.push(current.trim());
+            return result;
+        }
+
+        function parseCsvCatalog(csvText) {
+            const rows = csvText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+            if (rows.length < 2) return [];
+            
+            let headers = rows[0].split(',').map(h => h.trim());
+            if (headers.length === 1) headers = parseCsvLine(rows[0]);
+            
+            return rows.slice(1).map((line) => {
+                let values = parseCsvLine(line);
+                if (values.length !== headers.length) {
+                    values = line.split(',').map(v => v.trim());
+                }
+                if (values.length !== headers.length && headers.length === 10) {
+                    const parts = line.split(',');
+                    if (parts.length > 10) {
+                        values = parts.slice(0, 9);
+                        values.push(parts.slice(9).join(',').trim());
+                    }
+                }
+                
+                const record = headers.reduce((acc, h, i) => {
+                    acc[h] = values[i] ?? '';
+                    return acc;
+                }, {});
+                
+                return {
+                    brand: record.Brand,
+                    product: record.Product,
+                    type: record.Type,
+                    price: record.Price,
+                    dry: toBoolean(record.Dry),
+                    oily: toBoolean(record.Oily),
+                    combination: toBoolean(record.Combination),
+                    acneProne: toBoolean(record['Acne-prone']),
+                    sensitive: toBoolean(record.Sensitive),
+                };
+            }).filter((item) => item.brand && item.product);
+        }
+
+        async function runAllTests() {
+            // Test 1: CSV Access
+            setStatus('test1', 'Testing CSV access...');
+            try {
+                const response = await fetch(encodeURI("Skincare Spreadsheet - ORGANIZED (1).csv"));
+                if (!response.ok) {
+                    setStatus('test1', `<span class="error">✗ HTTP ${response.status}: ${response.statusText}</span>`);
+                    return;
+                }
+                const csvText = await response.text();
+                const lines = csvText.split('\n').length;
+                setStatus('test1', `<span class="success">✓ CSV loaded: ${lines} lines</span>`);
+                
+                // Test 2: Parsing
+                setStatus('test2', 'Parsing CSV...');
+                const products = parseCsvCatalog(csvText);
+                
+                if (products.length === 0) {
+                    setStatus('test2', `<span class="error">✗ No products parsed! (0 products)</span>`);
+                    return;
+                }
+                
+                let types = {};
+                products.forEach(p => { types[p.type] = (types[p.type] || 0) + 1; });
+                
+                let typeBreakdown = '';
+                for (const [type, count] of Object.entries(types).sort()) {
+                    typeBreakdown += `<br/>&nbsp;&nbsp;${type}: ${count}`;
+                }
+                
+                setStatus('test2', `
+                    <span class="success">✓ Parsed ${products.length} products</span><br/>
+                    <strong>By Type:</strong>${typeBreakdown}<br/>
+                    <strong>Sample:</strong><br/>
+                    &nbsp;&nbsp;${products[0].brand} ${products[0].product}<br/>
+                    &nbsp;&nbsp;${products[1].brand} ${products[1].product}
+                `);
+                
+                // Test 3: Matching
+                setStatus('test3', 'Testing product matching...');
+                
+                function computeScore(product, criteria) {
+                    let score = 0;
+                    if (criteria.types && criteria.types.length) {
+                        const typeMatch = criteria.types.some(
+                            (type) => product.type?.toLowerCase() === type.toLowerCase()
+                        );
+                        score += typeMatch ? 2 : 0;
+                    }
+                    (criteria.skinTags || []).forEach((tag) => {
+                        if (product[tag]) score += 1;
+                    });
+                    return score;
+                }
+                
+                const dryMatches = products
+                    .map(p => ({ product: p, score: computeScore(p, { skinTags: ["dry", "sensitive"], types: ["Cream", "Serum"] }) }))
+                    .filter(e => e.score > 0)
+                    .sort((a,b) => b.score - a.score)
+                    .slice(0, 3);
+                
+                if (dryMatches.length === 0) {
+                    setStatus('test3', `<span class="error">✗ No dry skin matches found!</span>`);
+                } else {
+                    let matches = '';
+                    dryMatches.forEach(m => {
+                        matches += `<br/>&nbsp;&nbsp;${m.product.brand} ${m.product.product} (score: ${m.score})`;
+                    });
+                    setStatus('test3', `<span class="success">✓ Found ${dryMatches.length} dry skin matches</span>${matches}`);
+                }
+                
+                // Test 4: Real API
+                setStatus('test4', 'Testing weather API...');
+                const weatherUrl = new URL("https://api.open-meteo.com/v1/forecast");
+                weatherUrl.searchParams.set("latitude", 40.7128);
+                weatherUrl.searchParams.set("longitude", -74.0060);
+                weatherUrl.searchParams.set("current", "temperature_2m,weather_code");
+                
+                const wResp = await fetch(weatherUrl);
+                if (wResp.ok) {
+                    const wData = await wResp.json();
+                    setStatus('test4', `
+                        <span class="success">✓ Weather API working</span><br/>
+                        &nbsp;&nbsp;Temp: ${wData.current.temperature_2m}°C<br/>
+                        &nbsp;&nbsp;Code: ${wData.current.weather_code}
+                    `);
+                } else {
+                    setStatus('test4', `<span class="warn">⚠ Weather API returned ${wResp.status}</span>`);
+                }
+                
+            } catch (error) {
+                setStatus('test1', `<span class="error">✗ Error: ${error.message}</span>`);
+            }
+        }
+
+        // Run on load
+        runAllTests();
+    </script>
+</body>
+</html>

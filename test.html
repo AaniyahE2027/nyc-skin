@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CSV Loading Test</title>
+    <style>
+        body { font-family: Arial; margin: 20px; background: #f5f5f5; }
+        .card { background: white; padding: 20px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+        .warning { color: orange; }
+        pre { background: #eee; padding: 10px; overflow: auto; border-radius: 4px; }
+        h2 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <h1>NYC Skin CSV Loading Diagnostic</h1>
+    
+    <div class="card">
+        <h2>Step 1: Load CSV File</h2>
+        <p id="step1-status">Loading...</p>
+        <pre id="step1-data"></pre>
+    </div>
+    
+    <div class="card">
+        <h2>Step 2: Parse CSV</h2>
+        <p id="step2-status">Waiting...</p>
+        <pre id="step2-data"></pre>
+    </div>
+    
+    <div class="card">
+        <h2>Step 3: Test Product Matching</h2>
+        <p id="step3-status">Waiting...</p>
+        <pre id="step3-data"></pre>
+    </div>
+
+    <script>
+        async function test() {
+            const status = (step, msg) => {
+                document.getElementById(`step${step}-status`).innerHTML = msg;
+            };
+            const data = (step, content) => {
+                document.getElementById(`step${step}-data`).textContent = content;
+            };
+
+            try {
+                // Step 1: Fetch CSV
+                status(1, 'Fetching...');
+                const response = await fetch(encodeURI("Skincare Spreadsheet - ORGANIZED (1).csv"));
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const csvText = await response.text();
+                const lines = csvText.split('\n').length;
+                status(1, `<span class="success">✓ CSV loaded (${lines} lines)</span>`);
+                data(1, csvText.substring(0, 500) + '...');
+
+                // Step 2: Parse CSV
+                status(2, 'Parsing...');
+                
+                function toBoolean(value) {
+                    return String(value).trim().toUpperCase() === "TRUE";
+                }
+
+                function parseCsvLine(line) {
+                    const result = [];
+                    let current = '';
+                    let inQuotes = false;
+                    
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
+                        if (char === '"') inQuotes = !inQuotes;
+                        else if (char === ',' && !inQuotes) {
+                            result.push(current.trim());
+                            current = '';
+                        } else {
+                            current += char;
+                        }
+                    }
+                    result.push(current.trim());
+                    return result;
+                }
+
+                function parseCsvCatalog(csvText) {
+                    const rows = csvText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+                    if (rows.length < 2) return [];
+                    
+                    let headers = rows[0].split(',').map(h => h.trim());
+                    if (headers.length === 1) headers = parseCsvLine(rows[0]);
+                    
+                    return rows.slice(1).map((line) => {
+                        let values = parseCsvLine(line);
+                        if (values.length !== headers.length) {
+                            values = line.split(',').map(v => v.trim());
+                        }
+                        if (values.length !== headers.length && headers.length === 10) {
+                            const parts = line.split(',');
+                            if (parts.length > 10) {
+                                values = parts.slice(0, 9);
+                                values.push(parts.slice(9).join(',').trim());
+                            }
+                        }
+                        
+                        const record = headers.reduce((acc, h, i) => {
+                            acc[h] = values[i] ?? '';
+                            return acc;
+                        }, {});
+                        
+                        return {
+                            brand: record.Brand,
+                            product: record.Product,
+                            type: record.Type,
+                            price: record.Price,
+                            dry: toBoolean(record.Dry),
+                            oily: toBoolean(record.Oily),
+                            combination: toBoolean(record.Combination),
+                            acneProne: toBoolean(record['Acne-prone']),
+                            sensitive: toBoolean(record.Sensitive),
+                        };
+                    }).filter((item) => item.brand && item.product);
+                }
+
+                const products = parseCsvCatalog(csvText);
+                status(2, `<span class="success">✓ Parsed ${products.length} products</span>`);
+                
+                let typeBreakdown = {};
+                products.forEach(p => {
+                    typeBreakdown[p.type] = (typeBreakdown[p.type] || 0) + 1;
+                });
+                
+                let summary = `Total: ${products.length} products\n\nBy Type:\n`;
+                for (const [type, count] of Object.entries(typeBreakdown)) {
+                    summary += `  ${type}: ${count}\n`;
+                }
+                summary += `\n\nFirst 3 Products:\n`;
+                products.slice(0, 3).forEach(p => {
+                    summary += `  - ${p.brand} ${p.product}\n    Type: ${p.type}, Price: ${p.price}\n    Dry: ${p.dry}, Sensitive: ${p.sensitive}, Oily: ${p.oily}\n`;
+                });
+                data(2, summary);
+
+                // Step 3: Test matching
+                status(3, 'Testing product matching...');
+                
+                function computeProductScore(product, criteria) {
+                    let score = 0;
+                    if (criteria.types && criteria.types.length) {
+                        const typeMatch = criteria.types.some(
+                            (type) => product.type?.toLowerCase() === type.toLowerCase()
+                        );
+                        score += typeMatch ? 2 : 0;
+                    }
+                    (criteria.skinTags || []).forEach((tag) => {
+                        if (product[tag]) score += 1;
+                    });
+                    return score;
+                }
+
+                function findProducts(criteria = {}, limit = 3) {
+                    const matches = products
+                        .map((product) => ({
+                            product,
+                            score: computeProductScore(product, criteria),
+                        }))
+                        .filter((entry) => entry.score > 0)
+                        .sort((a, b) => b.score - a.score);
+                    
+                    return matches.slice(0, limit).map((entry) => entry.product);
+                }
+
+                const testCriteria = {
+                    skinTags: ["dry", "sensitive", "combination"],
+                    types: ["Cream", "Treatment", "Serum", "Cleanser"]
+                };
+                
+                const testMatches = findProducts(testCriteria, 2);
+                
+                if (testMatches.length > 0) {
+                    status(3, `<span class="success">✓ Found ${testMatches.length} matching products for dry skin</span>`);
+                    let matchSummary = `Criteria: ${JSON.stringify(testCriteria)}\n\nMatches:\n`;
+                    testMatches.forEach(p => {
+                        matchSummary += `  - ${p.brand} ${p.product} (${p.type}, ${p.price})\n`;
+                    });
+                    data(3, matchSummary);
+                } else {
+                    status(3, `<span class="error">✗ No products found matching criteria!</span>`);
+                    let debugInfo = `Criteria: ${JSON.stringify(testCriteria)}\n\nNo matches found.\n\nScored products:\n`;
+                    const allScored = products.map(p => ({
+                        product: p,
+                        score: computeProductScore(p, testCriteria)
+                    })).sort((a,b) => b.score - a.score);
+                    allScored.slice(0, 5).forEach(ps => {
+                        debugInfo += `  ${ps.product.brand} ${ps.product.product}: score=${ps.score}\n`;
+                    });
+                    data(3, debugInfo);
+                }
+
+            } catch (error) {
+                status(1, `<span class="error">✗ Error: ${error.message}</span>`);
+                data(1, error.stack);
+            }
+        }
+
+        test();
+    </script>
+</body>
+</html>

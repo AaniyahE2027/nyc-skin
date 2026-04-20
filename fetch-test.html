@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Fetch Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #f0f0f0; }
+        div { background: white; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .success { color: green; font-weight: bold; }
+        .error { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>CSV Fetch Test</h1>
+    <div id="output">Testing...</div>
+
+    <script>
+        async function test() {
+            const output = document.getElementById('output');
+            const csvUrl = encodeURI("Skincare Spreadsheet - ORGANIZED (1).csv");
+            
+            output.innerHTML = `<p>Attempting to fetch from: <code>${csvUrl}</code></p>`;
+            
+            try {
+                const response = await fetch(csvUrl);
+                const text = `Response: ${response.status} ${response.statusText}`;
+                output.innerHTML += `<p>${text}</p>`;
+                
+                if (!response.ok) {
+                    output.innerHTML += `<p class="error">❌ HTTP Error: ${response.status}</p>`;
+                    return;
+                }
+                
+                const csvText = await response.text();
+                const lines = csvText.split('\n').filter(l => l.trim());
+                const products = lines.length - 1;
+                
+                output.innerHTML += `<p class="success">✓ CSV loaded successfully!</p>`;
+                output.innerHTML += `<p>Lines: ${lines.length}, Products: ${products}</p>`;
+                output.innerHTML += `<p>First 200 chars:</p><pre>${csvText.substring(0, 200)}</pre>`;
+            } catch (error) {
+                output.innerHTML += `<p class="error">❌ Error: ${error.message}</p>`;
+                output.innerHTML += `<p><pre>${error.stack}</pre></p>`;
+            }
+        }
+        
+        test();
+    </script>
+</body>
+</html>
