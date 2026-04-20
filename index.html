@@ -96,6 +96,12 @@
       <div class="panel-head">
         <h2 id="recommend-title">Skincare Product Recommendations</h2>
         <div class="filter-wrap">
+          <label for="forecast-selector">Look Ahead</label>
+          <select id="forecast-selector" name="forecast-selector">
+            <option value="current">Today</option>
+          </select>
+        </div>
+        <div class="filter-wrap">
           <label for="skin-type-filter">Skin Type</label>
           <select id="skin-type-filter" name="skin-type-filter">
             <option value="all">All Skin Types</option>
@@ -107,6 +113,7 @@
         </div>
       </div>
       <div id="summary-banner" class="summary-banner" aria-live="polite"></div>
+      <div id="forecast-info" class="forecast-info" aria-live="polite" style="display: none;"></div>
       <div id="recommendations" class="recommendations" aria-live="polite"></div>
     </section>
 

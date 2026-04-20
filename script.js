@@ -9,8 +9,9 @@ const elements = {
 	updated: document.getElementById("last-updated"),
 	refreshBtn: document.getElementById("refresh-btn"),
 	skinTypeFilter: document.getElementById("skin-type-filter"),
-	metricsGrid: document.getElementById("metrics-grid"),
+	forecastSelector: document.getElementById("forecast-selector"),
 	summaryBanner: document.getElementById("summary-banner"),
+	forecastInfo: document.getElementById("forecast-info"),
 	recommendations: document.getElementById("recommendations"),
 	modal: document.getElementById("welcome-modal"),
 	modalClose: document.getElementById("modal-close-btn"),
@@ -112,12 +113,14 @@ async function fetchNYCData() {
 		"temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m"
 	);
 	weatherUrl.searchParams.set("hourly", "uv_index");
+	weatherUrl.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,relative_humidity_2m_max,weather_code,uv_index_max");
 	weatherUrl.searchParams.set("timezone", "auto");
 
 	const airUrl = new URL("https://air-quality-api.open-meteo.com/v1/air-quality");
 	airUrl.searchParams.set("latitude", NYC.latitude);
 	airUrl.searchParams.set("longitude", NYC.longitude);
 	airUrl.searchParams.set("current", "us_aqi,pm2_5");
+	airUrl.searchParams.set("daily", "us_aqi_max");
 	airUrl.searchParams.set("timezone", "auto");
 
 	const [weatherResp, airResp] = await Promise.all([
@@ -140,6 +143,8 @@ async function fetchNYCData() {
 		air: airData.current,
 		uvIndex,
 		currentTime,
+		dailyForecast: weatherData.daily || {},
+		dailyAirQuality: airData.daily || {},
 	};
 }
 
@@ -311,6 +316,62 @@ function findProducts(criteria = {}, limit = 3) {
 		.sort((a, b) => b.score - a.score);
 
 	return matches.slice(0, limit).map((entry) => entry.product);
+}
+
+function extractForecastData(data, dateIndex) {
+	if (dateIndex === 0) {
+		return data;
+	}
+
+	const dailyForecast = data.dailyForecast;
+	const dailyAir = data.dailyAirQuality;
+
+	if (!dailyForecast.time || !Array.isArray(dailyForecast.time) || dateIndex >= dailyForecast.time.length) {
+		return data;
+	}
+
+	const forecastWeather = {
+		temperature_2m: dailyForecast.temperature_2m_max ? dailyForecast.temperature_2m_max[dateIndex] : data.weather.temperature_2m,
+		apparent_temperature: dailyForecast.temperature_2m_max ? dailyForecast.temperature_2m_max[dateIndex] : data.weather.apparent_temperature,
+		relative_humidity_2m: dailyForecast.relative_humidity_2m_max ? dailyForecast.relative_humidity_2m_max[dateIndex] : data.weather.relative_humidity_2m,
+		weather_code: dailyForecast.weather_code ? dailyForecast.weather_code[dateIndex] : data.weather.weather_code,
+		wind_speed_10m: data.weather.wind_speed_10m,
+	};
+
+	const forecastAir = {
+		us_aqi: dailyAir.us_aqi_max ? dailyAir.us_aqi_max[dateIndex] : data.air.us_aqi,
+		pm2_5: data.air.pm2_5,
+	};
+
+	const uvIndex = dailyForecast.uv_index_max ? dailyForecast.uv_index_max[dateIndex] : data.uvIndex;
+
+	return {
+		weather: forecastWeather,
+		air: forecastAir,
+		uvIndex: uvIndex,
+		currentTime: dailyForecast.time ? dailyForecast.time[dateIndex] : data.currentTime,
+		dailyForecast: dailyForecast,
+		dailyAirQuality: dailyAir,
+	};
+}
+
+function populateForecastSelector(data) {
+	const selector = elements.forecastSelector;
+	if (!data.dailyForecast.time || !Array.isArray(data.dailyForecast.time)) {
+		return;
+	}
+
+	const times = data.dailyForecast.time;
+	const maxDays = Math.min(times.length, 7);
+
+	for (let i = 1; i < maxDays; i += 1) {
+		const date = new Date(times[i]);
+		const dayName = new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(date);
+		const option = document.createElement("option");
+		option.value = i;
+		option.textContent = dayName;
+		selector.appendChild(option);
+	}
 }
 
 function buildRecommendations(data, skinType = "all") {
@@ -671,50 +732,22 @@ function buildRecommendations(data, skinType = "all") {
 function renderMetrics(data) {
 	const aqiTag = getAqiTag(data.air.us_aqi);
 
-	const cards = [
-		{
-			label: "Temperature",
-			value: `${round(celsiusToFahrenheit(data.weather.temperature_2m))}°F`,
-			note: `Feels like ${round(celsiusToFahrenheit(data.weather.apparent_temperature))}°F`,
-		},
-		{
-			label: "Humidity",
-			value: `${round(data.weather.relative_humidity_2m)}%`,
-			note: "Relative humidity",
-		},
-		{
-			label: "US AQI",
-			value: `${round(data.air.us_aqi)}`,
-			note: `${aqiTag.label} air quality`,
-		},
-		{
-			label: "PM2.5",
-			value: `${round(data.air.pm2_5)} ug/m3`,
-			note: "Fine particulate matter",
-		},
-		{
-			label: "UV Index",
-			value: `${round(data.uvIndex)}`,
-			note: data.uvIndex >= 6 ? "High protection needed" : "Monitor sun exposure",
-		},
-		{
-			label: "Wind",
-			value: `${round(data.weather.wind_speed_10m)} km/h`,
-			note: weatherDescription(data.weather.weather_code),
-		},
-	];
+	// Update weather icon based on weather code
+	const weatherIcon = getWeatherIcon(data.weather.weather_code);
+	document.getElementById('weather-icon').textContent = weatherIcon;
 
-	elements.metricsGrid.innerHTML = cards
-		.map(
-			(card, index) => `
-				<article class="metric-card" style="animation-delay:${index * 90}ms">
-					<p class="metric-label">${card.label}</p>
-					<p class="metric-value">${card.value}</p>
-					<p class="metric-note">${card.note}</p>
-				</article>
-			`
-		)
-		.join("");
+	// Update temperature
+	document.getElementById('weather-temp').textContent = `${round(celsiusToFahrenheit(data.weather.temperature_2m))}°F`;
+
+	// Update weather details
+	document.getElementById('feels-like').textContent = `${round(celsiusToFahrenheit(data.weather.apparent_temperature))}°F`;
+	document.getElementById('humidity').textContent = `${round(data.weather.relative_humidity_2m)}%`;
+	document.getElementById('wind').textContent = `${round(data.weather.wind_speed_10m)} km/h`;
+	document.getElementById('precip').textContent = `${round(data.air.pm2_5)} µg/m³`; // Using PM2.5 as precipitation proxy
+	document.getElementById('aqi').textContent = `${round(data.air.us_aqi)} µg/m³`;
+
+	// Update weather condition description
+	document.getElementById('conditions').textContent = weatherDescription(data.weather.weather_code);
 }
 
 function renderRecommendations(data) {
@@ -768,6 +801,7 @@ async function loadWeatherAndAdvice() {
 		
 		latestData = data;
 		renderMetrics(data);
+		populateForecastSelector(data);
 		renderRecommendations(data);
 		updateTimestamp(data.currentTime);
 		setStatus("Data synced. Recommendations are live for current NYC conditions.");
@@ -781,6 +815,12 @@ async function loadWeatherAndAdvice() {
 }
 
 elements.refreshBtn.addEventListener("click", loadWeatherAndAdvice);
+
+// Add event listener for the new refresh button in weather card
+const refreshBtnCard = document.getElementById("refreshBtn");
+if (refreshBtnCard) {
+	refreshBtnCard.addEventListener("click", loadWeatherAndAdvice);
+}
 elements.skinTypeFilter.addEventListener("change", () => {
 	if (!latestData) {
 		return;
@@ -800,35 +840,38 @@ if (learnToggle && learnContent) {
 	});
 }
 
-function getTopicIcon(title) {
-  const iconMap = {
-    'cleanse': '🧼',
-    'clean': '🧼',
-    'moistur': '💧',
-    'hydrat': '💧',
-    'sun': '☀️',
-    'spf': '☀️',
-    'protect': '🛡️',
-    'acne': '🎯',
-    'breakout': '🎯',
-    'anti-age': '✨',
-    'wrinkle': '✨',
-    'exfol': '✨',
-    'serums': '🧴',
-    'serum': '🧴',
-    'mask': '🎭',
-    'treatment': '💊',
-    'makeup': '💄',
-    'sensitive': '🌸',
-  };
-  
-  const lowerTitle = title.toLowerCase();
-  for (const [key, icon] of Object.entries(iconMap)) {
-    if (lowerTitle.includes(key)) {
-      return icon;
-    }
-  }
-  return '💆';
+function getWeatherIcon(code) {
+	const iconMap = {
+		0: "☀️", // Clear sky
+		1: "🌤️", // Mostly clear
+		2: "⛅", // Partly cloudy
+		3: "☁️", // Overcast
+		45: "🌫️", // Fog
+		48: "🌫️", // Rime fog
+		51: "🌦️", // Light drizzle
+		53: "🌦️", // Drizzle
+		55: "🌦️", // Heavy drizzle
+		56: "🌨️", // Freezing drizzle
+		57: "🌨️", // Heavy freezing drizzle
+		61: "🌧️", // Light rain
+		63: "🌧️", // Rain
+		65: "🌧️", // Heavy rain
+		66: "🌨️", // Freezing rain
+		67: "🌨️", // Heavy freezing rain
+		71: "❄️", // Light snow
+		73: "❄️", // Snow
+		75: "❄️", // Heavy snow
+		77: "❄️", // Snow grains
+		80: "🌦️", // Light showers
+		81: "🌦️", // Showers
+		82: "🌦️", // Violent showers
+		85: "🌨️", // Light snow showers
+		86: "🌨️", // Snow showers
+		95: "⛈️", // Thunderstorm
+		96: "⛈️", // Thunderstorm and hail
+		99: "⛈️", // Strong thunderstorm and hail
+	};
+	return iconMap[code] || "☀️";
 }
 
 function displayTopics(topics) {
