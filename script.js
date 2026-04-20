@@ -105,47 +105,67 @@ function initializeModal() {
 }
 
 async function fetchNYCData() {
-	const weatherUrl = new URL("https://api.open-meteo.com/v1/forecast");
-	weatherUrl.searchParams.set("latitude", NYC.latitude);
-	weatherUrl.searchParams.set("longitude", NYC.longitude);
-	weatherUrl.searchParams.set(
-		"current",
-		"temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m"
-	);
-	weatherUrl.searchParams.set("hourly", "uv_index");
-	weatherUrl.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,relative_humidity_2m_max,weather_code,uv_index_max");
-	weatherUrl.searchParams.set("timezone", "auto");
+	try {
+		console.log("Fetching NYC weather data...");
 
-	const airUrl = new URL("https://air-quality-api.open-meteo.com/v1/air-quality");
-	airUrl.searchParams.set("latitude", NYC.latitude);
-	airUrl.searchParams.set("longitude", NYC.longitude);
-	airUrl.searchParams.set("current", "us_aqi,pm2_5");
-	airUrl.searchParams.set("daily", "us_aqi_max");
-	airUrl.searchParams.set("timezone", "auto");
+		const weatherUrl = new URL("https://api.open-meteo.com/v1/forecast");
+		weatherUrl.searchParams.set("latitude", NYC.latitude);
+		weatherUrl.searchParams.set("longitude", NYC.longitude);
+		weatherUrl.searchParams.set(
+			"current",
+			"temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m"
+		);
+		weatherUrl.searchParams.set("hourly", "uv_index");
+		weatherUrl.searchParams.set("daily", "temperature_2m_max,temperature_2m_min,relative_humidity_2m_max,weather_code,uv_index_max");
+		weatherUrl.searchParams.set("timezone", "auto");
 
-	const [weatherResp, airResp] = await Promise.all([
-		fetch(weatherUrl),
-		fetch(airUrl),
-	]);
+		console.log("Weather URL:", weatherUrl.toString());
 
-	if (!weatherResp.ok || !airResp.ok) {
-		throw new Error("Unable to fetch live weather data right now.");
+		const airUrl = new URL("https://air-quality-api.open-meteo.com/v1/air-quality");
+		airUrl.searchParams.set("latitude", NYC.latitude);
+		airUrl.searchParams.set("longitude", NYC.longitude);
+		airUrl.searchParams.set("current", "us_aqi,pm2_5");
+		airUrl.searchParams.set("daily", "us_aqi_max");
+		airUrl.searchParams.set("timezone", "auto");
+
+		console.log("Air Quality URL:", airUrl.toString());
+
+		const [weatherResp, airResp] = await Promise.all([
+			fetch(weatherUrl, { signal: AbortSignal.timeout(10000) }), // 10 second timeout
+			fetch(airUrl, { signal: AbortSignal.timeout(10000) }),
+		]);
+
+		console.log("Weather response status:", weatherResp.status);
+		console.log("Air response status:", airResp.status);
+
+		if (!weatherResp.ok) {
+			throw new Error(`Weather API error: ${weatherResp.status} ${weatherResp.statusText}`);
+		}
+		if (!airResp.ok) {
+			throw new Error(`Air Quality API error: ${airResp.status} ${airResp.statusText}`);
+		}
+
+		const weatherData = await weatherResp.json();
+		const airData = await airResp.json();
+
+		console.log("Weather data received:", weatherData);
+		console.log("Air data received:", airData);
+
+		const currentTime = weatherData.current?.time;
+		const uvIndex = getUvForCurrentHour(weatherData.hourly, currentTime);
+
+		return {
+			weather: weatherData.current,
+			air: airData.current,
+			uvIndex,
+			currentTime,
+			dailyForecast: weatherData.daily || {},
+			dailyAirQuality: airData.daily || {},
+		};
+	} catch (error) {
+		console.error("Error fetching NYC data:", error);
+		throw error;
 	}
-
-	const weatherData = await weatherResp.json();
-	const airData = await airResp.json();
-
-	const currentTime = weatherData.current?.time;
-	const uvIndex = getUvForCurrentHour(weatherData.hourly, currentTime);
-
-	return {
-		weather: weatherData.current,
-		air: airData.current,
-		uvIndex,
-		currentTime,
-		dailyForecast: weatherData.daily || {},
-		dailyAirQuality: airData.daily || {},
-	};
 }
 
 function getUvForCurrentHour(hourly, currentTime) {
@@ -787,39 +807,77 @@ function setStatus(message, isError = false) {
 }
 
 async function loadWeatherAndAdvice() {
-	setStatus("Loading live weather and air quality...");
+	setStatus("Loading demo data...");
 	elements.refreshBtn.disabled = true;
 
 	try {
-		// Load weather data and product catalog in parallel
-		const [data] = await Promise.all([
-			fetchNYCData(),
-			loadProductCatalog().catch((error) => {
-				console.warn("Product catalog unavailable:", error);
-			}),
-		]);
-		
-		latestData = data;
-		renderMetrics(data);
-		populateForecastSelector(data);
-		renderRecommendations(data);
-		updateTimestamp(data.currentTime);
-		setStatus("Data synced. Recommendations are live for current NYC conditions.");
+		// Load product catalog and demo data
+		await loadProductCatalog().catch((error) => {
+			console.warn("Product catalog unavailable:", error);
+		});
+
+		const demoData = getDemoData();
+		latestData = demoData;
+		renderMetrics(demoData);
+		populateForecastSelector(demoData);
+		renderRecommendations(demoData);
+		updateTimestamp(demoData.currentTime);
+		setStatus("Demo data loaded. Click 'Load Live Data' for real NYC conditions.");
 	} catch (error) {
-		console.error(error);
-		setStatus("Could not load live data. Please try again in a moment.", true);
-		elements.updated.textContent = "Live update unavailable";
+		console.error("Failed to load demo data:", error);
+		setStatus("Could not load data. Please refresh the page.", true);
 	} finally {
 		elements.refreshBtn.disabled = false;
 	}
 }
 
-elements.refreshBtn.addEventListener("click", loadWeatherAndAdvice);
+// Separate function for loading live data
+async function loadLiveData() {
+	setStatus("Loading live NYC weather data...");
+	elements.refreshBtn.disabled = true;
+
+	try {
+		const data = await fetchNYCData();
+		latestData = data;
+		renderMetrics(data);
+		populateForecastSelector(data);
+		renderRecommendations(data);
+		updateTimestamp(data.currentTime);
+		setStatus("Live data synced! Recommendations updated for current NYC conditions.");
+	} catch (error) {
+		console.error("Failed to load live data:", error);
+		setStatus(`Live data unavailable: ${error.message}. Using demo data.`, true);
+	}
+}
+
+elements.refreshBtn.addEventListener("click", loadLiveData);
 
 // Add event listener for the new refresh button in weather card
 const refreshBtnCard = document.getElementById("refreshBtn");
 if (refreshBtnCard) {
-	refreshBtnCard.addEventListener("click", loadWeatherAndAdvice);
+	refreshBtnCard.addEventListener("click", loadLiveData);
+}
+
+// Add test API button
+const testApiBtn = document.getElementById("test-api-btn");
+if (testApiBtn) {
+	testApiBtn.addEventListener("click", async () => {
+		console.log("Testing API connectivity...");
+		try {
+			const response = await fetch("https://api.open-meteo.com/v1/forecast?latitude=40.7128&longitude=-74.0060&current=temperature_2m&timezone=auto");
+			if (response.ok) {
+				const data = await response.json();
+				console.log("API test successful:", data);
+				alert("API is working! Check console for details.");
+			} else {
+				console.error("API test failed:", response.status, response.statusText);
+				alert(`API test failed: ${response.status} ${response.statusText}`);
+			}
+		} catch (error) {
+			console.error("API test error:", error);
+			alert(`API test error: ${error.message}`);
+		}
+	});
 }
 elements.skinTypeFilter.addEventListener("change", () => {
 	if (!latestData) {
@@ -840,38 +898,32 @@ if (learnToggle && learnContent) {
 	});
 }
 
-function getWeatherIcon(code) {
-	const iconMap = {
-		0: "☀️", // Clear sky
-		1: "🌤️", // Mostly clear
-		2: "⛅", // Partly cloudy
-		3: "☁️", // Overcast
-		45: "🌫️", // Fog
-		48: "🌫️", // Rime fog
-		51: "🌦️", // Light drizzle
-		53: "🌦️", // Drizzle
-		55: "🌦️", // Heavy drizzle
-		56: "🌨️", // Freezing drizzle
-		57: "🌨️", // Heavy freezing drizzle
-		61: "🌧️", // Light rain
-		63: "🌧️", // Rain
-		65: "🌧️", // Heavy rain
-		66: "🌨️", // Freezing rain
-		67: "🌨️", // Heavy freezing rain
-		71: "❄️", // Light snow
-		73: "❄️", // Snow
-		75: "❄️", // Heavy snow
-		77: "❄️", // Snow grains
-		80: "🌦️", // Light showers
-		81: "🌦️", // Showers
-		82: "🌦️", // Violent showers
-		85: "🌨️", // Light snow showers
-		86: "🌨️", // Snow showers
-		95: "⛈️", // Thunderstorm
-		96: "⛈️", // Thunderstorm and hail
-		99: "⛈️", // Strong thunderstorm and hail
+function getDemoData() {
+	console.log("Loading demo data...");
+
+	return {
+		weather: {
+			temperature_2m: 22,
+			apparent_temperature: 25,
+			relative_humidity_2m: 65,
+			weather_code: 1, // Partly cloudy
+			wind_speed_10m: 8.5,
+		},
+		air: {
+			us_aqi: 45,
+			pm2_5: 12.5,
+		},
+		uvIndex: 6,
+		currentTime: new Date().toISOString(),
+		dailyForecast: {
+			time: [],
+			temperature_2m_max: [],
+			weather_code: [],
+		},
+		dailyAirQuality: {
+			us_aqi_max: [],
+		},
 	};
-	return iconMap[code] || "☀️";
 }
 
 function displayTopics(topics) {
