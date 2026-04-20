@@ -807,77 +807,53 @@ function setStatus(message, isError = false) {
 }
 
 async function loadWeatherAndAdvice() {
-	setStatus("Loading demo data...");
+	setStatus("Loading live NYC weather and air quality...");
 	elements.refreshBtn.disabled = true;
 
 	try {
-		// Load product catalog and demo data
-		await loadProductCatalog().catch((error) => {
-			console.warn("Product catalog unavailable:", error);
-		});
+		console.log("Starting data load...");
 
-		const demoData = getDemoData();
-		latestData = demoData;
-		renderMetrics(demoData);
-		populateForecastSelector(demoData);
-		renderRecommendations(demoData);
-		updateTimestamp(demoData.currentTime);
-		setStatus("Demo data loaded. Click 'Load Live Data' for real NYC conditions.");
-	} catch (error) {
-		console.error("Failed to load demo data:", error);
-		setStatus("Could not load data. Please refresh the page.", true);
-	} finally {
-		elements.refreshBtn.disabled = false;
-	}
-}
+		// Load weather data and product catalog in parallel
+		const [data] = await Promise.all([
+			fetchNYCData(),
+			loadProductCatalog().catch((error) => {
+				console.warn("Product catalog unavailable:", error);
+			}),
+		]);
 
-// Separate function for loading live data
-async function loadLiveData() {
-	setStatus("Loading live NYC weather data...");
-	elements.refreshBtn.disabled = true;
-
-	try {
-		const data = await fetchNYCData();
+		console.log("Data loaded successfully:", data);
 		latestData = data;
 		renderMetrics(data);
 		populateForecastSelector(data);
 		renderRecommendations(data);
 		updateTimestamp(data.currentTime);
-		setStatus("Live data synced! Recommendations updated for current NYC conditions.");
+		setStatus("Data synced. Recommendations are live for current NYC conditions.");
 	} catch (error) {
-		console.error("Failed to load live data:", error);
-		setStatus(`Live data unavailable: ${error.message}. Using demo data.`, true);
+		console.error("Failed to load weather data:", error);
+		setStatus(`Could not load live data: ${error.message}. Using demo data.`, true);
+
+		// Load fallback/demo data
+		try {
+			await loadProductCatalog();
+			const demoData = getDemoData();
+			latestData = demoData;
+			renderMetrics(demoData);
+			renderRecommendations(demoData);
+			updateTimestamp(demoData.currentTime);
+		} catch (catalogError) {
+			console.error("Even fallback data failed:", catalogError);
+		}
+	} finally {
+		elements.refreshBtn.disabled = false;
 	}
 }
 
-elements.refreshBtn.addEventListener("click", loadLiveData);
+elements.refreshBtn.addEventListener("click", loadWeatherAndAdvice);
 
 // Add event listener for the new refresh button in weather card
 const refreshBtnCard = document.getElementById("refreshBtn");
 if (refreshBtnCard) {
-	refreshBtnCard.addEventListener("click", loadLiveData);
-}
-
-// Add test API button
-const testApiBtn = document.getElementById("test-api-btn");
-if (testApiBtn) {
-	testApiBtn.addEventListener("click", async () => {
-		console.log("Testing API connectivity...");
-		try {
-			const response = await fetch("https://api.open-meteo.com/v1/forecast?latitude=40.7128&longitude=-74.0060&current=temperature_2m&timezone=auto");
-			if (response.ok) {
-				const data = await response.json();
-				console.log("API test successful:", data);
-				alert("API is working! Check console for details.");
-			} else {
-				console.error("API test failed:", response.status, response.statusText);
-				alert(`API test failed: ${response.status} ${response.statusText}`);
-			}
-		} catch (error) {
-			console.error("API test error:", error);
-			alert(`API test error: ${error.message}`);
-		}
-	});
+	refreshBtnCard.addEventListener("click", loadWeatherAndAdvice);
 }
 elements.skinTypeFilter.addEventListener("change", () => {
 	if (!latestData) {
@@ -885,6 +861,25 @@ elements.skinTypeFilter.addEventListener("change", () => {
 	}
 	renderRecommendations(latestData);
 	setStatus(`Filter applied: ${formatSkinTypeLabel(elements.skinTypeFilter.value)}.`);
+});
+
+// Add event listener for forecast selector
+elements.forecastSelector.addEventListener("change", () => {
+	if (!latestData) {
+		return;
+	}
+	const selectedIndex = parseInt(elements.forecastSelector.value);
+	const forecastData = extractForecastData(latestData, selectedIndex);
+	renderMetrics(forecastData);
+	renderRecommendations(forecastData);
+	
+	const date = new Date(forecastData.currentTime);
+	const dateString = new Intl.DateTimeFormat("en-US", { 
+		weekday: "long", 
+		month: "long", 
+		day: "numeric" 
+	}).format(date);
+	setStatus(`Showing forecast for ${dateString}.`);
 });
 
 const learnToggle = document.getElementById("learn-more-toggle");
