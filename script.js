@@ -723,6 +723,7 @@ function renderMetrics(data) {
 	document.getElementById("weather-temp").textContent = `${round(celsiusToFahrenheit(data.weather.temperature_2m))}°F`;
 	document.getElementById("feels-like").textContent = `${round(celsiusToFahrenheit(data.weather.apparent_temperature))}°F`;
 	document.getElementById("humidity").textContent = `${round(data.weather.relative_humidity_2m)}%`;
+	document.getElementById("uv-index").textContent = data.uvIndex != null ? `${round(data.uvIndex)}` : "--";
 	document.getElementById("wind").textContent = `${round(data.weather.wind_speed_10m)} km/h`;
 	document.getElementById("precip").textContent = data.weather.precipitation != null ? `${round(data.weather.precipitation)} mm` : "--";
 	document.getElementById("aqi").textContent = `${round(data.air.us_aqi)} µg/m³`;
