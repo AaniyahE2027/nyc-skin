@@ -196,6 +196,50 @@ function weatherDescription(code) {
 	return weatherCodeMap[code] || "Mixed conditions";
 }
 
+function getTopicIcon(title) {
+	const normalized = title.toLowerCase();
+	if (normalized.includes('barrier') || normalized.includes('ceramides') || normalized.includes('niacinamide')) {
+		return '🛡️';
+	}
+	if (normalized.includes('antioxidant') || normalized.includes('pollution') || normalized.includes('vitamin')) {
+		return '🍃';
+	}
+	if (normalized.includes('humectant') || normalized.includes('occlusive') || normalized.includes('hydration')) {
+		return '💧';
+	}
+	if (normalized.includes('pH') || normalized.includes('balance') || normalized.includes('acid mantle')) {
+		return '⚖️';
+	}
+	if (normalized.includes('sun') || normalized.includes('SPF') || normalized.includes('UV')) {
+		return '☀️';
+	}
+	return '✨';
+}
+
+function displayTopics(topics) {
+	const topicsEl = document.getElementById('topics');
+	topicsEl.innerHTML = '';
+	topics.forEach((topic, index) => {
+		const col = document.createElement('div');
+		col.className = 'col-12 topic-card p-2';
+		const imageHtml = topic.img ?
+			`<img src="${topic.img}" alt="${topic.title}" class="topic-image" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">` : '';
+		const placeholderHtml = `<div class="image-placeholder" data-topic-index="${index}" style="display: ${topic.img ? 'none' : 'flex'};">
+		  <div class="placeholder-icon">📷</div>
+		  <div class="placeholder-text">Future Image ${index + 1}</div>
+		</div>`;
+		const actionIcon = getTopicIcon(topic.title);
+		col.innerHTML = `
+		  <button class="topic-action-button" aria-label="Topic action">${actionIcon}</button>
+		  ${imageHtml}
+		  ${placeholderHtml}
+		  <h6>${topic.title}</h6>
+		  <p>${topic.text}</p>
+		`;
+		topicsEl.appendChild(col);
+	});
+}
+
 function getWeatherIcon(code) {
 	const iconMap = {
 		0: "☀️",

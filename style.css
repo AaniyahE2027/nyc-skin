@@ -652,6 +652,117 @@ h2 {
 	overflow: auto;
 }
 
+.row {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(1px, 1fr));
+	gap: 1rem;
+}
+
+.g-2 {
+	gap: 0.5rem;
+}
+
+.col-12 {
+	grid-column: 1 / -1;
+}
+
+.p-2 {
+	padding: 0.5rem;
+}
+
+.mb-3 {
+	margin-bottom: 1rem;
+}
+
+.topic-card {
+	position: relative;
+	margin-bottom: .6rem;
+	border: 2px solid #102a54;
+	background: linear-gradient(125deg, #fff9d8, #fff0bd);
+	padding-left: 3.5rem;
+}
+
+.topic-card .topic-action-button {
+	position: absolute;
+	top: 0.8rem;
+	left: 0.8rem;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 2.4rem;
+	height: 2.4rem;
+	border-radius: 999px;
+	border: 1px solid #102a54;
+	background: #fff;
+	color: #102a54;
+	font-size: 1rem;
+	box-shadow: 0 8px 18px rgba(16, 42, 84, 0.18);
+	cursor: pointer;
+	transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.topic-card .topic-action-button:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 10px 22px rgba(16, 42, 84, 0.22);
+}
+
+#topics .topic-card .image-placeholder {
+	width: 100%;
+	height: 120px;
+	background: rgb(126, 172, 241);
+	border: 3px dashed #4278ce;
+	border-radius: 12px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 0.5rem;
+	transition: all 0.3s ease;
+}
+
+.topic-image {
+	width: 100%;
+	height: 120px;
+	object-fit: cover;
+	border-radius: 12px;
+	margin-bottom: 0.5rem;
+	transition: all 0.3s ease;
+}
+
+.topic-image:hover {
+	transform: scale(1.02);
+}
+
+.image-placeholder:hover {
+	background: linear-gradient(135deg, #d1e7f0, #b8d4e3);
+	border-color: #357abd;
+}
+
+.placeholder-icon {
+	font-size: 3rem;
+	color: #1f4f96;
+	margin-bottom: 0.5rem;
+}
+
+.placeholder-text {
+	font-size: 1rem;
+	color: #1f4f96;
+	font-weight: 500;
+	text-align: center;
+}
+
+.topic-card h6 {
+	margin-top: .5rem;
+	font-size: 1rem;
+	color: #1f4f96;
+}
+
+.topic-card p {
+	font-size: .88rem;
+	margin-bottom: .5rem;
+	color: #1f4f96;
+}
+
 @media (max-width: 620px) {
 	.app-shell {
 		width: min(96vw, 1080px);
